@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>兼职风险检查 Agent</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <div>
+          <h1>兼职风险检查 Agent</h1>
+          <p>抓取当前网页，追问缺失信息，生成风险报告</p>
+        </div>
+        <a class="settings-link" href="../options/options.html" target="_blank">规则</a>
+      </header>
+
+      <section class="actions">
+        <button id="analyzePageBtn" class="primary">分析当前页面</button>
+        <button id="sampleBtn">填入示例</button>
+      </section>
+
+      <section class="panel">
+        <label for="jobText">招聘信息</label>
+        <textarea id="jobText" placeholder="可粘贴兼职招聘信息，也可以打开招聘网页后点击“分析当前页面”。"></textarea>
+        <button id="analyzeTextBtn" class="secondary">检测输入内容</button>
+      </section>
+
+      <section id="agentPanel" class="panel hidden">
+        <div class="panel-title">Agent 追问</div>
+        <div id="followUpHistory" class="follow-history"></div>
+        <div id="questions" class="question-list"></div>
+        <textarea id="followUpText" placeholder="根据 Agent 的问题补充你了解到的信息。"></textarea>
+        <button id="submitFollowUpBtn" class="primary">继续分析</button>
+      </section>
+
+      <section id="reportPanel" class="panel hidden">
+        <div class="report-head">
+          <div>
+            <div class="panel-title">风险报告</div>
+            <div id="riskBadge" class="badge">待检测</div>
+          </div>
+          <div id="score" class="score"></div>
+        </div>
+        <pre id="agentSummary" class="summary"></pre>
+        <div class="detail-grid">
+          <div>
+            <div class="sub-title">命中风险</div>
+            <div id="riskList" class="mini-list"></div>
+          </div>
+          <div>
+            <div class="sub-title">缺失信息</div>
+            <div id="missingList" class="mini-list"></div>
+          </div>
+        </div>
+        <div class="sub-title">分值明细</div>
+        <div id="breakdownList" class="breakdown"></div>
+        <div class="sub-title">建议追问</div>
+        <div id="confirmList" class="question-list compact"></div>
+        <div class="sub-title">证据片段</div>
+        <div id="evidenceList" class="chips"></div>
+        <div class="report-actions">
+          <button id="highlightBtn">高亮风险词</button>
+          <button id="clearHighlightBtn">清除高亮</button>
+          <button id="copyBtn">复制报告</button>
+          <button id="exportBtn">导出报告</button>
+        </div>
+      </section>
+
+      <section class="panel history-panel">
+        <div class="panel-row">
+          <div class="panel-title">最近检测</div>
+          <button id="clearHistoryBtn" class="small-btn">清空</button>
+        </div>
+        <div id="historyList" class="history-list"></div>
+      </section>
+
+      <div id="toast" class="toast hidden"></div>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
