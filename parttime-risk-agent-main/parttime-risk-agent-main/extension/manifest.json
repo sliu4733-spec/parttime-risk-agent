@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "兼职岗位风险检查 Agent",
+  "version": "1.0.0",
+  "description": "读取当前网页兼职招聘文本，识别押金、刷单、垫付、薪资异常等风险，并生成可解释风险报告。",
+  "action": {
+    "default_title": "兼职风险检查",
+    "default_popup": "popup/popup.html"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-script/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options/options.html",
+  "permissions": ["activeTab", "storage", "scripting", "downloads"],
+  "host_permissions": ["<all_urls>"]
+}
