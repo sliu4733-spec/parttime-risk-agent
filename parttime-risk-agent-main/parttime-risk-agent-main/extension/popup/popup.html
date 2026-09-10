@@ -35,8 +35,8 @@
         <div class="panel-title">Agent 追问</div>
         <div id="followUpHistory" class="follow-history"></div>
         <div id="questions" class="question-list"></div>
-        <textarea id="followUpText" placeholder="根据 Agent 的问题补充你了解到的信息。"></textarea>
-        <button id="submitFollowUpBtn" class="primary">继续分析</button>
+        <textarea hidden id="followUpText" placeholder="根据 Agent 的问题补充你了解到的信息。"></textarea>
+        <button id="submitFollowUpBtn" class="primary">提交逐题回答</button><button id="finishBtn">按现有信息生成报告</button><p>每轮最多3题，最多补充3轮。不知道可以直接说明。</p>
       </section>
 
       <section id="reportPanel" class="panel hidden">
@@ -64,6 +64,7 @@
         <div id="confirmList" class="question-list compact"></div>
         <div class="sub-title">证据片段</div>
         <div id="evidenceList" class="chips"></div>
+        <div id="highlightPreview" class="hidden" aria-live="polite"><div class="sub-title">招聘原文风险标记</div><div id="highlightText" style="white-space:pre-wrap;line-height:1.8;padding:12px;border:1px solid #ddd;border-radius:8px"></div></div>
         <div class="report-actions">
           <button id="highlightBtn">高亮风险词</button>
           <button id="clearHighlightBtn">清除高亮</button>

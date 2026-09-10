@@ -1,6 +1,9 @@
 let activeText = "";
 let latestReport = null;
 let followUpAnswers = [];
+let currentItems = [];
+let sourceTabId = null;
+let highlightedTabId = null;
 
 const els = {
   analyzePageBtn: document.getElementById("analyzePageBtn"),
@@ -98,6 +101,7 @@ async function analyzeCurrentPage() {
   resetConversation();
   try {
     const tab = await getActiveTab();
+    sourceTabId = tab.id;
     const response = await sendMessage({ type: "ANALYZE_CURRENT_PAGE", tabId: tab.id });
     handleAnalyzeResponse(response);
   } catch (error) {
@@ -129,26 +133,21 @@ async function analyzeText(text, followUp, reset = true) {
   }
 }
 
-async function submitFollowUp() {
-  const followUp = els.followUpText.value.trim();
-  if (!followUp) {
-    showToast("请先填写补充信息");
-    return;
-  }
-  followUpAnswers.push(followUp);
-  renderFollowUpHistory();
+async function submitFollowUp(forceReport = false) {
+  forceReport = forceReport === true;
+  const answers = currentItems.map((item,index) => ({...item, answer:document.getElementById(`answer-${index}`).value.trim()}));
+  if (!forceReport && answers.some(a=>!a.answer)) { showToast("请逐题回答；不清楚可填“不知道”。"); return; }
+  const next = [...followUpAnswers];
+  if (answers.some(a=>a.answer)) next.push({answers:answers.filter(a=>a.answer)});
   setBusy(true);
   try {
-    const response = await sendMessage({
-      type: "SUBMIT_FOLLOWUP",
-      payload: { text: activeText, followUp: followUpAnswers.join("\n") }
-    });
+    const response = await sendMessage({type:"SUBMIT_FOLLOWUP", payload:{text:activeText, turns:next, forceReport}});
+    if (!response?.ok) { showToast(response?.error || "分析失败，请重试"); return; }
+    followUpAnswers=next;
+    renderFollowUpHistory();
     handleAnalyzeResponse(response);
-  } catch (error) {
-    showToast(error.message || "继续分析失败");
-  } finally {
-    setBusy(false);
-  }
+  } catch(error) { showToast(error.message || "继续分析失败"); }
+  finally { setBusy(false); }
 }
 
 function handleAnalyzeResponse(response) {
@@ -163,7 +162,7 @@ function handleAnalyzeResponse(response) {
   }
 
   if (response.needQuestion) {
-    showQuestions(response.questions || []);
+    showQuestions(response.questions || [], response.questionItems);
     const sourceText = response.questionSource === "api" ? "大模型已生成场景化追问" : "本地规则已生成场景化追问";
     showToast(followUpAnswers.length ? `${sourceText}，还需要继续补充` : sourceText);
     return;
@@ -175,13 +174,19 @@ function handleAnalyzeResponse(response) {
   loadHistory();
 }
 
-function showQuestions(questions) {
+function showQuestions(questions, items) {
+  currentItems = items || questions.map((question,index)=>({key:`legacy-${index}`,question}));
   els.questions.innerHTML = "";
   questions.forEach((question, index) => {
     const div = document.createElement("div");
     div.className = "question";
     div.textContent = `${index + 1}. ${question}`;
     els.questions.appendChild(div);
+    const answer = document.createElement("textarea");
+    answer.id = `answer-${index}`;
+    answer.placeholder = "只回答这一题；不清楚可填“不知道”，也可填“已确认”或“不适用”。";
+    answer.style.minHeight = "65px";
+    els.questions.appendChild(answer);
   });
   els.followUpText.value = "";
   els.agentPanel.classList.remove("hidden");
@@ -192,7 +197,8 @@ function renderFollowUpHistory() {
   followUpAnswers.forEach((answer, index) => {
     const div = document.createElement("div");
     div.className = "follow-answer";
-    div.textContent = `第 ${index + 1} 次补充：${answer}`;
+    div.textContent = `第 ${index + 1} 轮：` + answer.answers.map(a=>`\n问：${a.question}\n答：${a.answer}`).join("\n");
+    div.style.whiteSpace = "pre-wrap";
     els.followUpHistory.appendChild(div);
   });
 }
@@ -265,28 +271,55 @@ function renderConfirmQuestions(items) {
   });
 }
 
-async function highlightRisks() {
-  if (!latestReport) {
-    showToast("请先生成风险报告");
-    return;
+function renderRiskMarks(text, keywords) {
+  const target = document.getElementById("highlightText");
+  target.replaceChildren();
+  const words = [...new Set(keywords.filter(k => typeof k === "string" && k.trim()))].sort((a,b)=>b.length-a.length);
+  let offset = 0, count = 0;
+  while (offset < text.length) {
+    let start = text.length, word = "";
+    for (const k of words) {
+      const index = text.indexOf(k, offset);
+      if (index >= 0 && index < start) { start = index; word = k; }
+    }
+    target.appendChild(document.createTextNode(text.slice(offset, start)));
+    if (!word) break;
+    const mark = document.createElement("mark");
+    mark.textContent = word;
+    mark.style.cssText = "background:#ffe044;color:#b00020;font-weight:800;border-bottom:2px solid #e00035;border-radius:3px;padding:1px 2px";
+    target.appendChild(mark);
+    count++; offset = start + word.length;
   }
-  const tab = await getActiveTab();
-  const keywords = [
-    ...(latestReport.matchedKeywords || []),
-    ...(latestReport.hitRules || []).flatMap((rule) => rule.matched || [])
-  ];
-  const response = await sendMessage({
-    type: "HIGHLIGHT_RISKS",
-    tabId: tab.id,
-    payload: { keywords }
-  });
-  showToast(response?.ok ? "已尝试在页面高亮风险词" : "高亮失败");
+  return count;
 }
-
+async function highlightRisks() {
+  if (!latestReport) { showToast("请先生成风险报告"); return; }
+  const keywords = [...(latestReport.matchedKeywords || []), ...(latestReport.hitRules || []).flatMap(rule=>rule.matched || [])];
+  const text = [activeText, ...followUpAnswers.flatMap(t=>t.answers.map(a=>a.answer))].join("\n");
+  const count = renderRiskMarks(text, keywords);
+  const preview = document.getElementById("highlightPreview");
+  preview.classList.toggle("hidden", !count);
+  if (count) preview.scrollIntoView({block:"nearest", behavior:"smooth"});
+  let pageCount = 0;
+  if (sourceTabId !== null && keywords.length) {
+    try {
+      const result = await sendMessage({type:"HIGHLIGHT_RISKS",tabId:sourceTabId,payload:{keywords}});
+      if (result?.ok) { pageCount=result.count || 0; highlightedTabId=sourceTabId; }
+    } catch (_) { /* Local preview remains available if the source page closed. */ }
+  }
+  showToast(count || pageCount ? `已标记 ${count} 处风险词${pageCount ? "，原网页也已高亮" : ""}` : "暂无高亮风险词");
+}
 async function clearHighlights() {
-  const tab = await getActiveTab();
-  const response = await sendMessage({ type: "CLEAR_HIGHLIGHTS", tabId: tab.id });
-  showToast(response?.ok ? "页面高亮已清除" : "清除失败");
+  const target = document.getElementById("highlightText");
+  target.textContent = target.textContent;
+  if (highlightedTabId !== null) {
+    try {
+      const result = await sendMessage({type:"CLEAR_HIGHLIGHTS",tabId:highlightedTabId});
+      if (!result?.ok) { showToast("插件内高亮已清除；原网页无法连接，刷新原网页即可清除"); return; }
+      highlightedTabId = null;
+    } catch (_) { showToast("插件内高亮已清除；刷新原网页即可清除网页标记"); return; }
+  }
+  showToast("已清除高亮");
 }
 
 async function copyReport() {
@@ -326,12 +359,15 @@ async function loadHistory() {
       <div class="history-text">${escapeHtml((item.inputText || "").slice(0, 80))}</div>
     `;
     div.addEventListener("click", () => {
+      resetConversation();
+      followUpAnswers = item.turns || [];
+      renderFollowUpHistory();
       els.jobText.value = item.inputText || "";
       activeText = item.inputText || "";
       if (item.status === "待补充") {
         latestReport = null;
         hideReport();
-        showQuestions(item.questions || []);
+        showQuestions(item.questions || [], item.questionItems);
         showToast("已恢复待补充记录");
         return;
       }
@@ -370,13 +406,16 @@ function hideReport() {
 }
 
 function resetConversation() {
+  sourceTabId = null;
+  document.getElementById("highlightPreview").classList.add("hidden");
   followUpAnswers = [];
+  currentItems = [];
   els.followUpHistory.innerHTML = "";
   els.agentPanel.classList.add("hidden");
 }
 
 function setBusy(isBusy) {
-  [els.analyzePageBtn, els.analyzeTextBtn, els.submitFollowUpBtn].forEach((button) => {
+  [els.analyzePageBtn, els.analyzeTextBtn, els.submitFollowUpBtn, els.ocrBtn, els.sampleBtn, document.getElementById("finishBtn")].forEach((button) => {
     button.disabled = isBusy;
   });
   if (isBusy) showToast("Agent 正在分析...");
@@ -433,3 +472,5 @@ function escapeHtml(value) {
     "'": "&#39;"
   }[char]));
 }
+
+document.getElementById("finishBtn").addEventListener("click", () => submitFollowUp(true));
