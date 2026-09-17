@@ -43,7 +43,8 @@ async function saveSettings() {
     apiKey: els.apiKey.value.trim()
   };
   const response = await sendMessage({ type: "SAVE_SETTINGS", payload: settings });
-  showToast(response?.ok ? "API 设置已保存" : "保存失败");
+  if(response?.ok) els.endpoint.value=response.settings.endpoint;
+  showToast(response?.ok ? (response.settings.endpoint !== settings.endpoint ? "已保存，并转换为本插件使用的 Chat Completions 接口地址" : "API 设置已保存") : "保存失败");
 }
 
 async function loadRules() {

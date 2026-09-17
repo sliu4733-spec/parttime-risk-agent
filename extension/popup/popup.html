@@ -16,68 +16,160 @@
         <a class="settings-link" href="../options/options.html" target="_blank">规则</a>
       </header>
 
-      <section class="actions">
-        <button id="analyzePageBtn" class="primary">分析当前页面</button>
-        <button id="sampleBtn">填入示例</button>
+      <!-- 首页：选择进入方式 -->
+      <section id="page-home" class="page">
+        <div class="home-box">
+          <div class="home-title">欢迎使用兼职风险检查 Agent</div>
+          <p class="home-desc">抓取当前网页或粘贴招聘信息，识别押金、刷单、垫付、薪资异常等风险，通过追问补全信息并生成风险报告。请选择进入方式：</p>
+          <div id="homeAccountHint" class="home-account-hint" hidden></div>
+          <button id="homeContinueBtn" class="primary big" hidden>继续使用</button>
+          <button id="guestEnterBtn" class="big">以游客模式使用</button>
+          <button id="homeLoginBtn" class="big">登录账号</button>
+          <button id="homeRegisterBtn" class="big">注册账号</button>
+          <button id="homeLogoutBtn" class="link-btn" hidden>退出登录</button>
+        </div>
+        <p class="home-note">游客模式无需账号即可完整使用检测功能，数据仅保存在本机；登录账号可将记录同步到后端，方便多设备查看。</p>
       </section>
 
-      <section class="panel">
-        <label for="jobText">招聘信息</label>
-        <textarea id="jobText" placeholder="可粘贴兼职招聘信息，也可以打开招聘网页后点击“分析当前页面”。"></textarea>
-        <button id="analyzeTextBtn" class="secondary">检测输入内容</button>
+      <!-- 登录页 -->
+      <section id="page-login" class="page hidden">
+        <div class="panel">
+          <div class="panel-title">登录账号</div>
+          <p id="loginNotice" class="notice hidden"></p>
+          <label for="loginBackendUrl">后端地址（本机或局域网）</label>
+          <input type="text" id="loginBackendUrl" value="http://127.0.0.1:3000" />
+          <label for="loginUsername">用户名</label>
+          <input type="text" id="loginUsername" placeholder="用户名" autocomplete="username" />
+          <label for="loginPassword">密码</label>
+          <input type="password" id="loginPassword" placeholder="密码" autocomplete="current-password" />
+          <button id="loginBtn" class="primary block">登录</button>
+          <button id="loginBackHomeBtn" class="link-btn">返回首页</button>
+        </div>
       </section>
 
-      <section id="agentPanel" class="panel hidden">
-        <div class="panel-title">Agent 追问</div>
-        <div id="followUpHistory" class="follow-history"></div>
-        <div id="questions" class="question-list"></div>
-        <textarea id="followUpText" placeholder="根据 Agent 的问题补充你了解到的信息。"></textarea>
-        <button id="submitFollowUpBtn" class="primary">继续分析</button>
+      <!-- 注册页 -->
+      <section id="page-register" class="page hidden">
+        <div class="panel">
+          <div class="panel-title">注册账号</div>
+          <p id="registerNotice" class="notice hidden"></p>
+          <label for="registerBackendUrl">后端地址（本机或局域网）</label>
+          <input type="text" id="registerBackendUrl" value="http://127.0.0.1:3000" />
+          <label for="registerUsername">用户名</label>
+          <input type="text" id="registerUsername" placeholder="用户名 3–32位" autocomplete="username" />
+          <label for="registerPassword">密码</label>
+          <input type="password" id="registerPassword" placeholder="密码至少8位" autocomplete="new-password" />
+          <label for="registerConfirm">确认密码</label>
+          <input type="password" id="registerConfirm" placeholder="再次输入密码" autocomplete="new-password" />
+          <button id="registerBtn" class="primary block">注册</button>
+          <p class="home-note">注册成功后请使用该账号登录。</p>
+          <button id="registerBackHomeBtn" class="link-btn">返回首页</button>
+        </div>
       </section>
 
-      <section id="reportPanel" class="panel hidden">
-        <div class="report-head">
-          <div>
-            <div class="panel-title">风险报告</div>
-            <div id="riskBadge" class="badge">待检测</div>
+      <!-- 分析页 -->
+      <section id="page-analyze" class="page hidden">
+        <div class="account-bar">
+          <span id="accountInfo">游客模式（未登录）</span>
+          <span class="account-bar-actions">
+            <button id="switchAccountBtn" class="small-btn">登录 / 注册</button>
+            <button id="logoutBtn" class="small-btn" hidden>退出账号</button>
+          </span>
+        </div>
+
+        <section class="actions">
+          <button id="analyzePageBtn" class="primary">分析当前页面</button>
+          <button id="sampleBtn">填入示例</button>
+        </section>
+
+        <section class="panel">
+          <label for="jobText">招聘信息</label>
+          <p id="pageSourceHint" class="hidden" style="font-size:12px;color:#526077"></p>
+          <textarea id="jobText" placeholder="可粘贴兼职招聘信息，也可以打开招聘网页后点击“分析当前页面”。"></textarea>
+          <div class="text-actions">
+            <button id="analyzeTextBtn" class="secondary">检测输入内容</button>
+            <button id="ocrBtn" class="secondary">识别截图</button>
+            <input type="file" id="ocrInput" accept="image/png,image/jpeg,image/jpg,image/webp" hidden />
           </div>
-          <div id="score" class="score"></div>
-        </div>
-        <pre id="agentSummary" class="summary"></pre>
-        <div class="detail-grid">
-          <div>
-            <div class="sub-title">命中风险</div>
-            <div id="riskList" class="mini-list"></div>
-          </div>
-          <div>
-            <div class="sub-title">缺失信息</div>
-            <div id="missingList" class="mini-list"></div>
-          </div>
-        </div>
-        <div class="sub-title">分值明细</div>
-        <div id="breakdownList" class="breakdown"></div>
-        <div class="sub-title">建议追问</div>
-        <div id="confirmList" class="question-list compact"></div>
-        <div class="sub-title">证据片段</div>
-        <div id="evidenceList" class="chips"></div>
-        <div class="report-actions">
-          <button id="highlightBtn">高亮风险词</button>
-          <button id="clearHighlightBtn">清除高亮</button>
-          <button id="copyBtn">复制报告</button>
-          <button id="exportBtn">导出报告</button>
-        </div>
-      </section>
+        </section>
 
-      <section class="panel history-panel">
-        <div class="panel-row">
-          <div class="panel-title">最近检测</div>
-          <button id="clearHistoryBtn" class="small-btn">清空</button>
-        </div>
-        <div id="historyList" class="history-list"></div>
+        <section id="progressPanel" class="panel hidden">
+          <div class="progress-row">
+            <div class="spinner"></div>
+            <span id="progressText">正在分析…</span>
+          </div>
+          <p class="progress-note">大模型分析可能需要 1–2 分钟，请稍候。关闭弹窗后结果会保存在本机，重新打开可继续查看。</p>
+          <div class="progress-actions">
+            <button id="cancelWaitBtn">不等了，开始新一轮</button>
+          </div>
+        </section>
+
+        <section id="agentPanel" class="panel hidden">
+          <div class="panel-title">Agent 追问</div>
+          <div id="followUpHistory" class="follow-history"></div>
+          <div id="questions" class="question-list"></div>
+          <textarea hidden id="followUpText" placeholder="根据 Agent 的问题补充你了解到的信息。"></textarea>
+          <div class="agent-actions">
+            <button id="submitFollowUpBtn" class="primary">提交逐题回答</button>
+            <button id="finishBtn">按现有信息生成报告</button>
+          </div>
+          <p>每轮最多3题，最多补充3轮。不知道可以直接说明。</p>
+        </section>
+
+        <section id="reportPanel" class="panel hidden">
+          <div class="report-head">
+            <div>
+              <div class="panel-title">风险报告</div>
+              <div id="riskBadge" class="badge">待检测</div>
+            </div>
+            <div id="score" class="score"></div>
+          </div>
+          <p id="modelStatus" class="summary" style="font-size:12px"></p>
+          <p id="scoreHelp" style="font-size:12px;color:#526077"></p>
+          <pre id="agentSummary" class="summary"></pre>
+          <div class="detail-grid">
+            <div>
+              <div class="sub-title">命中风险</div>
+              <div id="riskList" class="mini-list"></div>
+            </div>
+            <div>
+              <div class="sub-title">缺失信息</div>
+              <div id="missingList" class="mini-list"></div>
+            </div>
+          </div>
+          <div class="sub-title">分值明细</div>
+          <div id="breakdownList" class="breakdown"></div>
+          <div class="sub-title">建议追问</div>
+          <div id="confirmList" class="question-list compact"></div>
+          <div class="sub-title">证据片段</div>
+          <div id="evidenceList" class="chips"></div>
+          <div id="highlightPreview" class="hidden" aria-live="polite"><div class="sub-title">招聘原文风险标记</div><div id="highlightText" style="white-space:pre-wrap;line-height:1.8;padding:12px;border:1px solid #ddd;border-radius:8px"></div></div>
+          <div class="report-actions">
+            <button id="highlightBtn">高亮风险词</button>
+            <button id="clearHighlightBtn">清除高亮</button>
+            <button id="copyBtn">复制报告</button>
+            <button id="exportBtn">导出报告</button>
+          </div>
+          <button id="nextRoundBtn" class="primary block next-round">开始下一轮检测</button>
+        </section>
+
+        <section class="panel history-panel">
+          <div class="panel-row">
+            <div class="panel-title" id="historyTitle">个人记录</div>
+            <button id="clearHistoryBtn" class="small-btn">清空本机</button>
+          </div>
+          <label class="consent-line"><input type="checkbox" id="syncConsent" />同意将本条招聘文本、问答和报告上传至后端</label>
+          <div class="sync-row">
+            <button id="uploadBtn" class="small-btn">同步当前记录 / 重试</button>
+            <button id="downloadBtn" class="small-btn">下载云端记录</button>
+          </div>
+          <p id="syncStatus" class="sync-status">检测使用你自己的 API；同步不上传 Key 或图片原文件。</p>
+          <div id="historyList" class="history-list"></div>
+        </section>
       </section>
 
       <div id="toast" class="toast hidden"></div>
     </main>
     <script src="popup.js"></script>
+    <script src="sync-ui.js"></script>
   </body>
 </html>
