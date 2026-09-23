@@ -1,0 +1,16 @@
+{
+  "name": "parttime-risk-sync-server",
+  "version": "3.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node app.js",
+    "test": "node --test ../tests/server.test.js ../tests/sync.test.js ../tests/popup.test.js ../tests/background.test.js ../tests/e2e.test.js ../tests/content.test.js ../tests/model-protocol.test.js"
+  },
+  "dependencies": {
+    "express": "4.21.2",
+    "sql.js": "1.13.0"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}

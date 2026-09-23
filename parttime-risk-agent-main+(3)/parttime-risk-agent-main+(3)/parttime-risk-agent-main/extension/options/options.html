@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>兼职风险检查 Agent 设置</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header>
+        <h1>规则与 API 设置</h1>
+        <p>维护风险规则，配置可选大模型接口。默认关闭 API 时，插件使用本地规则 Agent。</p>
+      </header>
+
+      <section class="card">
+        <h2>大模型 API</h2>
+        <label class="switch-row">
+          <input id="enableApi" type="checkbox" />
+          <span>启用真实 API 生成追问和解释报告</span>
+        </label>
+        <div class="grid">
+          <label>
+            接口地址
+            <input id="endpoint" placeholder="https://api.openai.com/v1/chat/completions" />
+          </label>
+          <label>
+            模型名称
+            <input id="model" placeholder="gpt-4o-mini" />
+          </label>
+        </div>
+        <label>
+          API Key
+          <input id="apiKey" type="password" placeholder="课程演示可填临时 Key，正式项目应使用后端中转" />
+        </label>
+        <button id="saveSettingsBtn" class="primary">保存 API 设置</button>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>风险规则维护</h2>
+          <button id="resetRulesBtn">恢复默认规则</button>
+        </div>
+        <div class="form-grid">
+          <input id="category" placeholder="风险类别，如 先交费用" />
+          <input id="name" placeholder="规则名称，如 培训费风险" />
+          <input id="keywords" placeholder="关键词，用逗号分隔" />
+          <input id="score" type="number" placeholder="分值，如 40" />
+          <textarea id="description" placeholder="风险说明"></textarea>
+          <textarea id="advice" placeholder="处理建议"></textarea>
+        </div>
+        <button id="addRuleBtn" class="primary">新增规则</button>
+        <div id="rulesList" class="rules"></div>
+      </section>
+
+      <div id="toast" class="toast hidden"></div>
+    </main>
+    <script src="../data/riskRules.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>
