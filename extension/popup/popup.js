@@ -66,7 +66,20 @@ function ensureKeepAlive() {
 }
 ensureKeepAlive();
 
-const SEND_TIMEOUT = { default: 20000, analysis: 290000, ocr: 90000 };
+const SEND_TIMEOUT = { default: 20000, analysis: 290000, ocr: 120000 };
+
+// 兼容旧版 Chromium 内核（部分国产浏览器没有 crypto.randomUUID）。
+function uuid() {
+  try {
+    if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
+      return globalThis.crypto.randomUUID();
+    }
+  } catch (_) {}
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0;
+    return (ch === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
 
 function sendMessage(message, timeoutMs = SEND_TIMEOUT.default) {
   return new Promise((resolve, reject) => {
@@ -185,17 +198,18 @@ async function handleOcrImage(event) {
     showToast("请选择图片文件");
     return;
   }
-  if (file.size > 8 * 1024 * 1024) {
-    showToast("图片不能超过 8MB");
+  if (file.size > 12 * 1024 * 1024) {
+    showToast("图片不能超过 12MB");
     els.ocrInput.value = "";
     return;
   }
   setBusy(true);
-  showProgress("正在识别图片文字…");
+  showProgress("正在压缩并识别图片文字…");
   hideReport();
   resetConversation();
   try {
-    const dataUrl = await readFileAsDataUrl(file);
+    // 先本地压缩：手机截图常达数 MB，直传容易被视觉接口拒绝或超时。
+    const dataUrl = await fileToVisionDataUrl(file);
     const response = await sendMessage({ type: "OCR_ANALYZE", payload: { image: dataUrl } }, SEND_TIMEOUT.ocr);
     if (!response?.ok) {
       showToast(response?.error || "图片识别失败");
@@ -224,6 +238,62 @@ function readFileAsDataUrl(file) {
   });
 }
 
+function decodeImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("图片解码失败")); };
+    img.src = url;
+  });
+}
+
+// 视觉模型对图片大小和边长都有限制：最长边压到 1568px 内，逐级降质，
+// 保证 dataURL 体积在常见接口上限（约 4MB）内；压缩失败时退回原图。
+async function fileToVisionDataUrl(file) {
+  const original = await readFileAsDataUrl(file);
+  let img;
+  try {
+    img = await decodeImageFile(file);
+  } catch (_) {
+    return original;
+  }
+  const naturalW = img.naturalWidth || img.width || 0;
+  const naturalH = img.naturalHeight || img.height || 0;
+  if (!naturalW || !naturalH) return original;
+  const MAX_SIDE = 1568;
+  const baseRatio = Math.min(1, MAX_SIDE / Math.max(naturalW, naturalH));
+  const scales = [1, 0.85, 0.7, 0.55];
+  const qualities = [0.85, 0.7, 0.55, 0.4];
+  const LIMIT = 4200000;
+  const candidates = [];
+  for (const scale of scales) {
+    const w = Math.max(320, Math.round(naturalW * baseRatio * scale));
+    const h = Math.max(240, Math.round(naturalH * baseRatio * scale));
+    let canvas;
+    try {
+      canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+    } catch (_) {
+      continue;
+    }
+    for (const quality of qualities) {
+      let url;
+      try { url = canvas.toDataURL("image/jpeg", quality); } catch (_) { continue; }
+      candidates.push(url);
+      if (url.length <= LIMIT) return url;
+    }
+  }
+  candidates.sort((a, b) => a.length - b.length);
+  const best = candidates[0];
+  return best && best.length < original.length ? best : original;
+}
+
 async function analyzeCurrentPage() {
   if (busy) {
     showToast("正在分析中，请稍候");
@@ -237,7 +307,7 @@ async function analyzeCurrentPage() {
   try {
     const tab = await getActiveTab();
     sourceTabId = tab.id;
-    activeRecordId = crypto.randomUUID();
+    activeRecordId = uuid();
     const response = await sendMessage({ type: "ANALYZE_CURRENT_PAGE", tabId: tab.id, payload: { syncId: activeRecordId, scope: accountScope } }, SEND_TIMEOUT.analysis);
     await handleAnalyzeResponse(response, seq);
   } catch (error) {
@@ -263,7 +333,7 @@ async function analyzeText(text, followUp, reset = true, internal = false) {
   if (reset) resetConversation();
   try {
     activeText = text.trim();
-    if (!activeRecordId) activeRecordId = crypto.randomUUID();
+    if (!activeRecordId) activeRecordId = uuid();
     const response = await sendMessage({
       type: "ANALYZE_TEXT",
       payload: { text: activeText, followUp, syncId: activeRecordId, scope: accountScope }
@@ -339,6 +409,9 @@ async function handleAnalyzeResponse(response, seq) {
   await persistSnapshot();
   await refreshSync();
   stopPoll();
+  // 检测完成后自动把招聘原文里的高危词（押金、垫付、激活费、刷单、备案费）标红，
+  // 让可疑内容一眼可见；普通风险词仍保留黄色高亮以便区分。
+  highlightRisks();
 }
 
 function showQuestions(questions, items) {
@@ -441,9 +514,13 @@ function renderConfirmQuestions(items) {
 }
 
 function renderRiskMarks(text, keywords) {
+  const DANGER_WORDS = ["押金", "垫付", "激活费", "刷单", "备案费"];
   const target = document.getElementById("highlightText");
   target.replaceChildren();
-  const words = [...new Set(keywords.filter((k) => typeof k === "string" && k.trim()))].sort((a, b) => b.length - a.length);
+  // 始终纳入高危词：只要招聘原文里出现就标红，避免检测规则遗漏。
+  const words = [...new Set([...(keywords || []), ...DANGER_WORDS])]
+    .filter((k) => typeof k === "string" && k.trim())
+    .sort((a, b) => b.length - a.length);
   let offset = 0, count = 0;
   while (offset < text.length) {
     let start = text.length, word = "";
@@ -455,7 +532,12 @@ function renderRiskMarks(text, keywords) {
     if (!word) break;
     const mark = document.createElement("mark");
     mark.textContent = word;
-    mark.style.cssText = "background:#ffe044;color:#b00020;font-weight:800;border-bottom:2px solid #e00035;border-radius:3px;padding:1px 2px";
+    if (DANGER_WORDS.includes(word)) {
+      // 高危词：红底白字加粗，一眼识别可疑内容。
+      mark.style.cssText = "background:#e00035;color:#ffffff;font-weight:800;border-bottom:2px solid #8a0021;border-radius:3px;padding:1px 4px";
+    } else {
+      mark.style.cssText = "background:#ffe044;color:#b00020;font-weight:800;border-bottom:2px solid #e00035;border-radius:3px;padding:1px 2px";
+    }
     target.appendChild(mark);
     count++; offset = start + word.length;
   }
@@ -596,3 +678,28 @@ els.exportBtn.addEventListener("click", exportReport);
 els.nextRoundBtn.addEventListener("click", startNextRound);
 els.cancelWaitBtn.addEventListener("click", startNextRound);
 els.clearHistoryBtn.addEventListener("click", clearHistory);
+
+// 自动加载待处理预检：由页面小弹窗"查看报告"打开(?auto=1)时载入本次扫描结果并继续追问/详尽报告。
+async function autoLoadPendingReport() {
+  const params = new URLSearchParams(location.search);
+  if (params.get("auto") !== "1") return; // 普通工具栏打开不自动加载，避免误触发
+  const { pendingQuickScan } = await chrome.storage.local.get("pendingQuickScan");
+  if (!pendingQuickScan || Date.now() - (pendingQuickScan.timestamp || 0) > 5 * 60 * 1000) return;
+  try {
+    await enterAnalyze();
+    sourceTabId = pendingQuickScan.tabId ?? null; // 保留来源标签，便于高亮原网页
+    activeText = pendingQuickScan.text || "";
+    els.jobText.value = activeText;
+    const hint = document.getElementById("pageSourceHint");
+    if (hint) {
+      hint.textContent = `本次分析：页面自动预检结果${pendingQuickScan.title ? ` · ${pendingQuickScan.title}` : ""}。已自动载入，可继续追问或查看详尽报告。`;
+      hint.classList.remove("hidden");
+    }
+    await analyzeText(activeText, "", false, true); // reset=false 保留 sourceTabId；internal=true 跳过 busy 守卫
+  } catch (e) {
+    showToast(e?.message || "自动载入失败");
+  } finally {
+    await chrome.storage.local.remove("pendingQuickScan");
+  }
+}
+autoLoadPendingReport();

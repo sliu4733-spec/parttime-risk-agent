@@ -22,7 +22,7 @@ function snapshotData() {
 
 async function persistSnapshot() {
   if (!activeText) return;
-  if (!activeRecordId) activeRecordId = crypto.randomUUID();
+  if (!activeRecordId) activeRecordId = (typeof uuid === 'function') ? uuid() : crypto.randomUUID();
   latestSnapshot = snapshotData();
   await syncCall('save', { record: { id: activeRecordId, data: latestSnapshot } });
   syncEl('syncStatus').textContent = '已保存到本机；需点击同步才会上传';

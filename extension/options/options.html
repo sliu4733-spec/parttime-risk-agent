@@ -10,30 +10,55 @@
     <main class="page">
       <header>
         <h1>规则与 API 设置</h1>
-        <p>维护风险规则，配置可选大模型接口。默认关闭 API 时，插件使用本地规则 Agent。</p>
+        <p>维护风险规则，配置可选大模型接口。识图模型用于截图识别，回答模型用于信息抽取、追问与风险报告。默认关闭时，插件使用本地规则 Agent。</p>
       </header>
 
       <section class="card">
-        <h2>大模型 API</h2>
+        <h2>识图模型 API（截图识别）</h2>
         <label class="switch-row">
-          <input id="enableApi" type="checkbox" />
-          <span>启用真实 API 生成追问和解释报告</span>
+          <input id="visionEnable" type="checkbox" />
+          <span>启用识图模型，用于截图 OCR 识别招聘信息</span>
         </label>
         <div class="grid">
           <label>
             接口地址
-            <input id="endpoint" placeholder="https://api.openai.com/v1/chat/completions" />
+            <input id="visionEndpoint" placeholder="https://api.openai.com/v1/chat/completions" />
           </label>
           <label>
             模型名称
-            <input id="model" placeholder="gpt-4o-mini" />
+            <input id="visionModel" placeholder="gpt-4o-mini" />
+            <small>需支持图片输入的视觉模型，如 gpt-4o-mini、gpt-4o、qwen-vl-plus、qwen-vl-max、glm-4v 等；纯文本模型无法识别图片。</small>
           </label>
         </div>
         <label>
           API Key
-          <input id="apiKey" type="password" placeholder="课程演示可填临时 Key，正式项目应使用后端中转" />
+          <input id="visionApiKey" type="password" placeholder="课程演示可填临时 Key，正式项目应使用后端中转" />
         </label>
-        <button id="saveSettingsBtn" class="primary">保存 API 设置</button>
+        <button id="saveVisionBtn" class="primary">保存识图模型设置</button>
+      </section>
+
+      <section class="card">
+        <h2>回答模型 API（抽取 / 追问 / 报告）</h2>
+        <label class="switch-row">
+          <input id="answerEnable" type="checkbox" />
+          <span>启用回答模型，用于生成结构化抽取、追问与风险解释报告</span>
+        </label>
+        <div class="grid">
+          <label>
+            接口地址
+            <input id="answerEndpoint" placeholder="https://api.openai.com/v1/chat/completions" />
+          </label>
+          <label>
+            模型名称
+            <input id="answerModel" placeholder="gpt-4o-mini" />
+            <small>文本理解能力较强的模型即可，如 gpt-4o-mini、deepseek-chat、qwen-plus 等；可不支持图片。</small>
+          </label>
+        </div>
+        <label>
+          API Key
+          <input id="answerApiKey" type="password" placeholder="课程演示可填临时 Key，正式项目应使用后端中转" />
+        </label>
+        <button id="saveAnswerBtn" class="primary">保存回答模型设置</button>
       </section>
 
       <section class="card">

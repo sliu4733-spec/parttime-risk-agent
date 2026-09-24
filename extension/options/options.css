@@ -86,6 +86,14 @@ label {
   gap: 8px;
 }
 
+small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
 input,
 textarea {
   width: 100%;

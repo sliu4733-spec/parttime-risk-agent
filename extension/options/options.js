@@ -1,9 +1,14 @@
 const els = {
-  enableApi: document.getElementById("enableApi"),
-  endpoint: document.getElementById("endpoint"),
-  model: document.getElementById("model"),
-  apiKey: document.getElementById("apiKey"),
-  saveSettingsBtn: document.getElementById("saveSettingsBtn"),
+  visionEnable: document.getElementById("visionEnable"),
+  visionEndpoint: document.getElementById("visionEndpoint"),
+  visionModel: document.getElementById("visionModel"),
+  visionApiKey: document.getElementById("visionApiKey"),
+  saveVisionBtn: document.getElementById("saveVisionBtn"),
+  answerEnable: document.getElementById("answerEnable"),
+  answerEndpoint: document.getElementById("answerEndpoint"),
+  answerModel: document.getElementById("answerModel"),
+  answerApiKey: document.getElementById("answerApiKey"),
+  saveAnswerBtn: document.getElementById("saveAnswerBtn"),
   resetRulesBtn: document.getElementById("resetRulesBtn"),
   addRuleBtn: document.getElementById("addRuleBtn"),
   rulesList: document.getElementById("rulesList"),
@@ -16,8 +21,12 @@ const els = {
   toast: document.getElementById("toast")
 };
 
+const DEFAULT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
+const DEFAULT_MODEL = "gpt-4o-mini";
+
 document.addEventListener("DOMContentLoaded", init);
-els.saveSettingsBtn.addEventListener("click", saveSettings);
+els.saveVisionBtn.addEventListener("click", saveVisionSettings);
+els.saveAnswerBtn.addEventListener("click", saveAnswerSettings);
 els.addRuleBtn.addEventListener("click", addRule);
 els.resetRulesBtn.addEventListener("click", resetRules);
 
@@ -29,22 +38,52 @@ async function init() {
 async function loadSettings() {
   const response = await sendMessage({ type: "GET_SETTINGS" });
   const settings = response?.settings || response || {};
-  els.enableApi.checked = Boolean(settings.enableApi);
-  els.endpoint.value = settings.endpoint || "https://api.openai.com/v1/chat/completions";
-  els.model.value = settings.model || "gpt-4o-mini";
-  els.apiKey.value = settings.apiKey || "";
+  const vision = settings.vision || {};
+  const answer = settings.answer || {};
+  // 兼容旧版单一配置：无分组时两组共用同一份平铺字段。
+  const legacy = (!settings.vision && !settings.answer) ? settings : {};
+  const v = { ...legacy, ...vision };
+  const a = { ...legacy, ...answer };
+  els.visionEnable.checked = Boolean(v.enableApi);
+  els.visionEndpoint.value = v.endpoint || DEFAULT_ENDPOINT;
+  els.visionModel.value = v.model || DEFAULT_MODEL;
+  els.visionApiKey.value = v.apiKey || "";
+  els.answerEnable.checked = Boolean(a.enableApi);
+  els.answerEndpoint.value = a.endpoint || DEFAULT_ENDPOINT;
+  els.answerModel.value = a.model || DEFAULT_MODEL;
+  els.answerApiKey.value = a.apiKey || "";
 }
 
-async function saveSettings() {
-  const settings = {
-    enableApi: els.enableApi.checked,
-    endpoint: els.endpoint.value.trim(),
-    model: els.model.value.trim(),
-    apiKey: els.apiKey.value.trim()
+function readConfig(prefix) {
+  return {
+    enableApi: els[prefix + "Enable"].checked,
+    endpoint: els[prefix + "Endpoint"].value.trim(),
+    model: els[prefix + "Model"].value.trim(),
+    apiKey: els[prefix + "ApiKey"].value.trim()
   };
-  const response = await sendMessage({ type: "SAVE_SETTINGS", payload: settings });
-  if(response?.ok) els.endpoint.value=response.settings.endpoint;
-  showToast(response?.ok ? (response.settings.endpoint !== settings.endpoint ? "已保存，并转换为本插件使用的 Chat Completions 接口地址" : "API 设置已保存") : "保存失败");
+}
+
+async function saveVisionSettings() {
+  const vision = readConfig("vision");
+  const response = await sendMessage({ type: "SAVE_SETTINGS", payload: { vision } });
+  const saved = response?.settings?.vision;
+  if (response?.ok && saved) els.visionEndpoint.value = saved.endpoint;
+  showToastSaved(response, vision.endpoint, saved?.endpoint, "识图模型设置");
+}
+
+async function saveAnswerSettings() {
+  const answer = readConfig("answer");
+  const response = await sendMessage({ type: "SAVE_SETTINGS", payload: { answer } });
+  const saved = response?.settings?.answer;
+  if (response?.ok && saved) els.answerEndpoint.value = saved.endpoint;
+  showToastSaved(response, answer.endpoint, saved?.endpoint, "回答模型设置");
+}
+
+function showToastSaved(response, inputEndpoint, savedEndpoint, label) {
+  if (!response?.ok) { showToast("保存失败"); return; }
+  showToast(inputEndpoint !== savedEndpoint
+    ? `已保存，并转换为本插件使用的 Chat Completions 接口地址（${label}）`
+    : `${label}已保存`);
 }
 
 async function loadRules() {
