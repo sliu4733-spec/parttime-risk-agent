@@ -1,8 +1,14 @@
+# IDE
+.idea/
+.vscode/
+
+# Claude Code local state
+.claude/
+
+# Dependencies
 node_modules/
-.env
-*.db
-*.sqlite
+
+# Logs & OS junk
 *.log
-dist/
 .DS_Store
 Thumbs.db

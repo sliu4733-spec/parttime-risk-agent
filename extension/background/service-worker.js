@@ -871,8 +871,15 @@ function buildEventSupportFollowUpQuestions(missingKeys, extracted) {
 
 function modelFailure(error) {
   if(error?.outputCode) return error.message + "（" + error.outputCode + "）";
-  const code=String(error?.message || '').match(/API (\d{3})/);
-  if(code) return `接口返回 HTTP ${code[1]}（请检查接口地址、模型、额度及权限）`;
+  const message=String(error?.message || '');
+  const code=message.match(/API (\d{3})/);
+  if(code) {
+    const detail=message.slice(code.index + code[0].length).replace(/^[：:]\s*/, "").trim();
+    const hint=code[1]==='404' ? '接口地址不存在，请确认地址以 /chat/completions 结尾（只填 https://api.deepseek.com 这类域名也可以，插件会自动补全）'
+      : (code[1]==='401' || code[1]==='403') ? 'API Key 无效、余额不足或没有该模型权限'
+      : '请检查接口地址、模型、额度及权限';
+    return `接口返回 HTTP ${code[1]}：${detail ? detail.slice(0,200) : hint}`;
+  }
   if(/timeout|abort/i.test(String(error?.name)+' '+String(error?.message))) return '模型请求超时';
   if(/格式|证据|截断/.test(error?.message || '')) return '模型输出格式或原文证据校验未通过';
   return '模型请求未完成（请检查网络及接口配置）';
@@ -1203,7 +1210,10 @@ async function requestStructuredModel(settings,messages,validate,options={}) {
       body:JSON.stringify({model:settings.model || 'gpt-4o-mini',stream:false,...structuredRequestOptions(settings,options.stage || 'report',attempt),
         messages:attempt ? [...messages,{role:'user',content:'上次返回没有形成符合要求的完整JSON。请重新输出完整JSON对象，不要输出解释或思考。保留要求的字段，quote必须复制所提供原文。'}] : messages})
     });
-    if(!response.ok) throw new Error(`API ${response.status}`);
+    if(!response.ok) {
+      const detail=await readErrorDetail(response);
+      throw new Error(`API ${response.status}${detail ? `：${String(detail).slice(0,200)}` : ""}`);
+    }
     try {
       let data;try {data=await response.json();} catch (_) {throw modelOutputError('protocol');}
       const answer=readModelAnswer(data),parsed=parseJsonObject(answer);
@@ -1472,8 +1482,19 @@ async function clearHistory() {
   return { ok: true, history: [] };
 }
 
+// 用户常直接填服务方给出的 Base URL（如 https://api.deepseek.com、…/v1、…/api/paas/v4），
+// 统一补全为完整的 Chat Completions 地址，避免只填域名时请求打到站点根路径返回 404。
 function compatibleEndpoint(endpoint) {
- return /^https:\/\/api\.deepseek\.com\/anthropic\/?$/.test(endpoint) ? "https://api.deepseek.com/chat/completions" : endpoint;
+  const raw = String(endpoint || "").trim().replace(/\/+$/, "");
+  if (!raw) return DEFAULT_API_ENDPOINT;
+  if (/^https:\/\/api\.deepseek\.com\/anthropic\/?$/.test(raw)) return "https://api.deepseek.com/chat/completions";
+  if (/\/chat\/completions$/i.test(raw)) return raw;
+  try {
+    const url = new URL(raw);
+    if (url.pathname === "" || url.pathname === "/") return `${url.origin}/chat/completions`;
+    if (/\/(api\/)?v\d+$/i.test(url.pathname)) return `${url.origin}${url.pathname}/chat/completions`;
+  } catch (_) {}
+  return raw;
 }
 
 const DEFAULT_API_ENDPOINT = "https://api.openai.com/v1/chat/completions";
