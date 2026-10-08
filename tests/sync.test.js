@@ -5,6 +5,11 @@ function client(){
  vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/background/sync.js'),'utf8'),context);
  return {call:m=>context.syncDispatch(m),offline(v){context.fetch=v?async()=>{throw Error('offline');}:fetch;},storage};
 }
+test('sync identifiers use native cryptographic UUID once without recursion',()=>{
+ let calls=0;const context={crypto:{randomUUID(){calls++;return 'native-uuid';}}};
+ vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/background/sync.js'),'utf8'),context);
+ assert.equal(context.prUuid(),'native-uuid');assert.equal(calls,1);
+});
 test('two clients sync, local offline state, conflict copy, account switching and deletion',async()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'sync-client-')),service=await createApp(path.join(dir,'test.sqlite')),server=service.app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
  try{

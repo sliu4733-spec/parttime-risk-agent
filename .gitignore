@@ -7,8 +7,18 @@
 
 # Dependencies
 node_modules/
+.npm-cache/
+server/data/
 
 # Logs & OS junk
 *.log
 .DS_Store
 Thumbs.db
+
+# Local credentials and live model outputs
+.env
+.env.*
+!.env.example
+.deepseek-test-key
+*-test-key
+live-test-result.json

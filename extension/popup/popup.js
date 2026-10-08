@@ -353,14 +353,14 @@ async function submitFollowUp(forceReport = false) {
   }
   forceReport = forceReport === true;
   const answers = currentItems.map((item, index) => ({ ...item, answer: document.getElementById(`answer-${index}`).value.trim() }));
-  if (!forceReport && answers.some((a) => !a.answer)) { showToast("请逐题回答；不清楚可填“不知道”。"); return; }
+  if (!forceReport && !answers.some((a) => a.answer)) { showToast("请自由填写至少一条补充信息，或直接按现有信息生成报告。"); return; }
   const next = [...followUpAnswers];
-  if (answers.some((a) => a.answer)) next.push({ answers: answers.filter((a) => a.answer) });
+  if (answers.some((a) => a.answer)) next.push({ answers });
   const seq = ++analysisSeq;
   setBusy(true);
   showProgress("正在结合回答继续分析…");
   try {
-    const response = await sendMessage({ type: "SUBMIT_FOLLOWUP", payload: { text: activeText, turns: next, forceReport, syncId: activeRecordId, scope: accountScope } }, SEND_TIMEOUT.analysis);
+    const response = await sendMessage({ type: "SUBMIT_FOLLOWUP", payload: { text: activeText, turns: next, pendingQuestions: answers.filter(a => !a.answer), forceReport, syncId: activeRecordId, scope: accountScope } }, SEND_TIMEOUT.analysis);
     if (!response?.ok) { showToast(response?.error || "分析失败，请重试"); return; }
     followUpAnswers = next;
     renderFollowUpHistory();
@@ -422,9 +422,16 @@ function showQuestions(questions, items) {
     div.className = "question";
     div.textContent = `${index + 1}. ${question}`;
     els.questions.appendChild(div);
+    const item = currentItems[index];
+    if (item?.quote || item?.reason) {
+      const basis = document.createElement("p");
+      basis.className = "hint";
+      basis.textContent = [item.quote ? `提问依据：“${item.quote}”` : "", item.reason || ""].filter(Boolean).join("；");
+      els.questions.appendChild(basis);
+    }
     const answer = document.createElement("textarea");
     answer.id = `answer-${index}`;
-    answer.placeholder = "只回答这一题；不清楚可填“不知道”，也可填“已确认”或“不适用”。";
+    answer.placeholder = "自由输入你的实际情况、招聘方的原话或疑问，长句也可以，没有固定答案；暂时不清楚的题可以留空。";
     answer.style.minHeight = "65px";
     els.questions.appendChild(answer);
   });
@@ -447,10 +454,12 @@ function renderReport(report) {
   if (!report) return;
   els.reportPanel.classList.remove("hidden");
   els.riskBadge.className = `badge ${badgeClass(report.riskLevel)}`;
-  els.riskBadge.textContent = report.riskLevel;
+  els.riskBadge.textContent = `规则判定：${report.riskLevel}`;
   els.score.textContent = `规则风险分：${report.score} 分`;
   document.getElementById("scoreHelp").textContent = report.scoreExplanation || "分值越高，规则发现的风险线索越多或越严重。0分仅表示未命中规则，不代表安全；不是岗位质量评分或诈骗概率。";
   document.getElementById("modelStatus").textContent = (report.analysisSource === "api" ? `报告：大模型生成（${report.model || "已配置模型"}）` : report.analysisSource === "local-fallback" ? "报告：模型失败，已降级为本地结果" : "报告：本地规则或历史记录，未确认模型调用成功") + (report.apiError ? `；${report.apiError}` : "") + (report.extractionSource ? `；事实抽取：${report.extractionSource === "api" ? "大模型" : "本地规则"}` : "") + (report.extractionError ? `；${report.extractionError}` : "");
+  document.getElementById("verificationSummary").textContent = report.verificationSummary || "旧版报告没有独立核实清单，可重新检测生成。";
+  renderVerificationChecklist(report.verificationChecklist || []);
   els.agentSummary.textContent = report.agentSummary || report.conclusion || "";
   renderMiniList(els.riskList, report.hitRisks || [], "未命中明显风险类别");
   renderMiniList(els.missingList, report.missingFields || [], "关键信息较完整");
@@ -463,6 +472,19 @@ function renderReport(report) {
     span.textContent = evidence;
     els.evidenceList.appendChild(span);
   });
+}
+
+function renderVerificationChecklist(items) {
+  const container=document.getElementById('verificationChecklist');
+  container.replaceChildren();
+  if(!items.length) {container.textContent='暂无清单条目；不代表已经核验安全。';return;}
+  for(const item of items) {
+    const card=document.createElement('div');card.className='question';
+    for(const text of [`${item.priority} · ${item.status}`,`向HR确认：${item.question}`,item.answer?`你的回答：${item.answer}`:'',item.quote?`相关依据：${item.quote}`:'',`为什么要问：${item.reason}`,`建议确认方式：${item.evidence}`].filter(Boolean)) {
+      const line=document.createElement('p');line.textContent=text;card.appendChild(line);
+    }
+    container.appendChild(card);
+  }
 }
 
 function renderMiniList(container, items, emptyText) {
@@ -580,7 +602,7 @@ async function copyReport() {
     showToast("请先生成风险报告");
     return;
   }
-  await navigator.clipboard.writeText(latestReport.agentSummary || JSON.stringify(latestReport, null, 2));
+  await navigator.clipboard.writeText([latestReport.verificationSummary, latestReport.verificationText, latestReport.agentSummary || JSON.stringify(latestReport, null, 2)].filter(Boolean).join("\n\n"));
   showToast("报告已复制");
 }
 

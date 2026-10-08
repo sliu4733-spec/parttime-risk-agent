@@ -9,6 +9,14 @@ function page(html){
  w.HTMLElement.prototype.getBoundingClientRect=function(){return {top:0,bottom:600,left:0,right:800};};
  vm.runInContext(source,dom.getInternalVMContext());return {dom,w,read:()=>w.extractJobOnce()};
 }
+test('split list layout keeps detail nested under job-list containers and its semantic header',()=>{
+ const p=page(`<div class="job-list-container"><div class="job-list-box"><div class="job-card-wrapper">其他岗位 5-7K</div><div class="job-card-wrapper">其他工作 9-12K</div><section class="job-detail-box"><header><h2>Java开发工程师</h2><span>11-22K·13薪</span></header><h3>职位描述</h3><p>负责业务系统开发、维护接口和数据库，参与代码审查和系统设计。</p><h3>岗位要求</h3><p>本科，掌握Java和MySQL，有实际项目开发经验。</p></section></div></div>`);
+ const r=p.read();assert.equal(r.ok,true);assert.match(r.text,/Java开发工程师/);assert.match(r.text,/11-22K·13薪/);assert.doesNotMatch(r.text,/其他岗位|其他工作/);p.dom.window.close();
+});
+test('generic technical job needs no part-time sales language',()=>{
+ const p=page('<main><h1>Java工程师</h1><p>11-22K·13薪</p><h3>职位描述</h3><p>负责服务端系统设计与开发、代码审查，持续改进系统性能及稳定性。</p></main>');
+ assert.equal(p.read().ok,true);p.dom.window.close();
+});
 test('company recruitment split view extracts opened position, not navigation or cards',()=>{
  const p=page(`<nav>首页 公司 校园 APP 海归</nav><main><section class="job-list"><div class="job-card-wrapper">供应链专家 40-60K</div><div class="job-card-wrapper">硬件经理 50-80K</div></section><section class="job-detail">${detail()}<aside>推荐岗位 客服 3-5K</aside><button>立即沟通</button></section></main>`);
  const r=p.read();assert.equal(r.ok,true);assert.match(r.text,/AI产品经理/);assert.match(r.text,/30-60K/);assert.match(r.text,/人工接管/);assert.doesNotMatch(r.text,/首页|海归|供应链|硬件|推荐岗位|立即沟通/);p.dom.window.close();

@@ -33,8 +33,10 @@ const JOB_DETAIL_SELECTORS = [
   '[role="dialog"]', 'dialog[open]', 'article', 'main', '[role="main"]'
 ].join(',');
 const JOB_CARD_LIKE = '.job-card-wrapper,.job-list-item,.job-card,[data-testid="job-card"],[class*="job-card"],[class*="job-item"],li[data-job-id],[class*="position-card"]';
-const JOB_LIST_NOISE = '.job-list,.job-list-box,.job-recommend,.recommend-job,.recommend-list,.related-jobs,.job-card-wrapper,[class*="job-list"],[class*="recommend"],[class*="related-job"],[class*="similar-job"],[class*="hot-job"]';
-const JOB_NOISE = 'script,style,noscript,nav,header,footer,aside,button,input,textarea,select,[role="navigation"],[role="banner"],[hidden],[aria-hidden="true"],' + JOB_LIST_NOISE + ',#parttime-risk-warning-box,#parttime-risk-host';
+// A job-list layout can contain BOTH the cards and the opened detail pane.
+// Exclude individual cards, never every descendant of a layout by substring.
+const JOB_LIST_NOISE = '.job-recommend,.recommend-job,.recommend-list,.related-jobs,.job-card-wrapper,[class*="recommend"],[class*="related-job"],[class*="similar-job"],[class*="hot-job"]';
+const JOB_NOISE = 'script,style,noscript,nav,footer,aside,button,input,textarea,select,[role="navigation"],[role="banner"],[hidden],[aria-hidden="true"],' + JOB_LIST_NOISE + ',' + JOB_CARD_LIKE + ',#parttime-risk-warning-box,#parttime-risk-host';
 const JOB_SECTION = /职位描述|岗位职责|工作职责|工作内容|任职要求|职位要求|岗位要求|任职资格/;
 const JOB_PAY = /\d+(?:[.,]\d+)?\s*(?:[-~–—至]\s*\d+(?:[.,]\d+)?)?\s*(?:[kK万千]|元|薪)|薪资|时薪|日薪|月薪/;
 
@@ -147,7 +149,10 @@ function extractJobOnce(allowSelection = true) {
     const isJobSpecific = el.matches('[class*="job"],[class*="position"],[class*="recruit"],[itemtype*="JobPosting"],[role="dialog"],dialog[open]')
       || /job|position|recruit|post/i.test(cls);
     const isGeneric = !isJobSpecific && el.matches('main,article,[role="main"]');
-    if(!likelyJobPosting(text, isGeneric)) continue;
+    // A technical role may contain no part-time/recruitment marketing phrases.
+    // A complete detail with duties and pay is still a job posting.
+    const structuredJob = JOB_HEADING_RE.test(text) && PAY_SIGNAL_RE.test(text);
+    if(!likelyJobPosting(text, isGeneric) && !(structuredJob && !looksLikeEditorial(text))) continue;
     const salaries=text.match(/\d+\s*[-~–—]\s*\d+\s*[kK万千]/g)||[];
     if(new Set(salaries).size>2) continue;
     const heading=el.querySelector('h1,h2,h3,.job-name,.job-title,[itemprop="title"],[class*="job"][class*="name"],[class*="position-name"]');
@@ -163,7 +168,7 @@ function extractJobOnce(allowSelection = true) {
   }
   candidates.sort((a,b)=>b.score-a.score || a.text.length-b.text.length);
   const best=candidates[0];
-  if(!best) return {ok:false,error:'未定位到当前打开的岗位详情。请打开具体岗位，等待正文加载；也可选中岗位标题、薪资和职责后再点“分析当前页面”，或上传详情截图。'};
+  if(!best) return {ok:false,error:'未能提取该页面的岗位正文，可能是页面结构未适配或详情尚未加载。可选中标题、薪资和职责后再次分析，或粘贴正文、上传详情截图。'};
   const rival=candidates.find(c=>c!==best && !best.el.contains(c.el) && !c.el.contains(best.el) && c.text!==best.text && c.score>=best.score-5);
   if(rival) return {ok:false,error:'页面中有多个岗位详情，暂时无法确定你要分析哪一个。请选中目标岗位正文后再次分析。'};
   return {ok:true,text:best.text.slice(0,12000),title:best.title,source:'job-detail',truncated:best.text.length>12000};
@@ -241,7 +246,7 @@ function insertWarningBox(keywords, count) {
   box.innerHTML = `
     <div class="parttime-risk-title">兼职风险提示</div>
     <div>已在页面中标记 ${count} 处可能风险文字。</div>
-    <div class="parttime-risk-keywords">${keywords.slice(0, 8).join("、")}</div>
+    <div class="parttime-risk-keywords">${escapeHtml(keywords.slice(0, 8).join("、"))}</div>
   `;
   document.documentElement.appendChild(box);
   injectHighlightStyle();

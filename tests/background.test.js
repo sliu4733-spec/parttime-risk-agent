@@ -60,6 +60,25 @@ function analysisBox() {
  const box={console,AbortSignal,URL,importScripts(){},chrome:{runtime:{onInstalled:{addListener(){}},onMessage:{addListener(){}}}}};
  vm.createContext(box);vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/background/service-worker.js'),'utf8'),box);return box;
 }
+test('quote validation cannot remove negation or assemble scattered evidence',()=>{
+ const b=analysisBox();assert.equal(b.quoteAnchored('需要缴纳培训费用','不需要缴纳培训费用'),true);
+ assert.equal(b.quoteAnchored('公司要求缴纳培训费用','公司不要求缴纳培训费用'),false);
+ assert.equal(b.quoteAnchored('先交押金后上岗','先看岗位说明，不交费用，押金一律禁止，后续上岗'),false);
+});
+test('model can investigate concrete contract gaps after fixed fields are filled',()=>{
+ const b=analysisBox();assert.equal(b.shouldAskFollowUp([],emptyScan(),true),true);
+ assert.equal(b.shouldAskFollowUp([],emptyScan(),false),false);
+ assert.equal(b.shouldAskFollowUp([],{score:80,riskLevel:'高风险'},true),false);
+});
+test('model questions retain evidence and reason and avoid repeated wording under new keys',async()=>{
+ const b=analysisBox();const question='第13薪的发放条件是什么？';
+ b.fetch=async()=>({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({questions:[{key:'bonus',quote:'13薪',question,reason:'用于区分固定工资和条件奖金'}]})}}]})});
+ const settings={enableApi:true,apiKey:'test'};
+ const r=await b.planQuestions('Java 11-22K·13薪',[],[],{},settings);
+ assert.equal(r.items[0].quote,'13薪');assert.match(r.items[0].reason,/固定工资/);
+ const r2=await b.planQuestions('Java 11-22K·13薪',[{answers:[{key:'compensation',question,answer:'不知道'}]}],[],{},settings);
+ assert.equal(r2.items.length,0);
+});
 test('questions do not contaminate extracted facts',async()=>{
  const box=analysisBox();let input,context;
  box.getSettings=async()=>({});box.getEnabledRules=async()=>[];
@@ -102,6 +121,34 @@ test('page extraction failure never calls model; completed report retains exact 
 
 const hardwareJob='L4硬件产品经理-无人车 30-60K·19薪 北京 本科。岗位职责：负责无人配送车硬件产品线规划与需求管理，主导线控底盘与传感器选型，推进DV/PV试验和量产导入。';
 function emptyScan(){return {score:0,riskLevel:'低风险',hitRisks:[],hitRules:[],evidence:[],matchedKeywords:[],scoreBreakdown:[]};}
+test('unknown answers remain in HR checklist without changing rule score and resolved topics are not retained',()=>{
+ const b=analysisBox();const turns=[{answers:[{key:'compensation',question:'绩效工资如何发放？',answer:'不知道'},{key:'hours',question:'每周到岗几天？',answer:''},{key:'contract',question:'签什么协议？',answer:'实习协议'}]}];
+ const r=b.completeVerificationReport({score:0,riskLevel:'低风险',confirmQuestions:[]},turns);
+ assert.equal(r.score,0);assert.equal(r.riskLevel,'低风险');assert.equal(r.verificationChecklist.length,2);
+ assert.equal(r.verificationChecklist[0].priority,'优先核实');assert.match(r.verificationSummary,/暂不能/);
+ assert.match(b.formatExportReport(r),/绩效工资如何发放/);assert.match(r.verificationText,/书面/);
+ const updated=b.completeVerificationReport({confirmQuestions:[]},[...turns,{answers:[{key:'compensation',question:'绩效工资如何发放？',answer:'每月发放，按书面约定的项目验收结果计算'}]}]);
+ assert.ok(!updated.verificationChecklist.some(i=>i.key==='compensation'));
+});
+test('uncertain fee questions do not score, explicit user-reported payment requests do',()=>{
+ const b=analysisBox(),rules=[{id:'fee',category:'先交费用',name:'押金',keywords:['押金'],score:60}];
+ assert.equal(b.riskScan(b.assertedAnswerText('不知道是否需要押金'),rules).score,0);
+ assert.equal(b.riskScan(b.assertedAnswerText('如果要交押金怎么办？'),rules).score,0);
+ assert.equal(b.riskScan(b.assertedAnswerText('不知道合同类型，但HR要求先交500元押金'),rules).score,60);
+});
+test('HR questions can retain an unanswered topic even though interview stopped asking user',()=>{
+ const b=analysisBox();const r=b.validateGroundedReport({facts:[{quote:'工资面议',meaning:'工资尚待确认'}],observations:[],questions:[{key:'salary',quote:'工资面议',question:'固定工资是多少？'}]},'工资面议',{},[{answers:[{key:'salary',question:'工资多少？',answer:'不清楚'}]}]);
+ assert.equal(r.confirmQuestions.length,1);assert.match(r.agentSummary,/用户补充/);
+});
+test('free-form answers reach extraction and report intact, including corrected pay and new risk facts',async()=>{
+ const b=analysisBox();const answer='招聘方后来解释固定月薪只有6000元，其余按项目验收发放；还让我用个人银行卡收客户款，我不愿意。';
+ const turns=[{answers:[{key:'compensation',question:'工资如何构成？',answer}]}];
+ b.getAnswerSettings=async()=>({});b.getEnabledRules=async()=>[];
+ b.extractInfo=async(text,use,settings,history)=>{assert.ok(text.includes(answer));assert.equal(history[0].answers[0].answer,answer);return {salary:'固定6000元，其余按项目验收',settlement:'按项目验收'};};
+ b.buildFinalReport=async(text,scan,info,missing,history)=>{assert.ok(text.includes(answer));assert.equal(info.salary,'固定6000元，其余按项目验收');assert.equal(info.settlement,'按项目验收');assert.equal(history[0].answers[0].answer,answer);return {agentSummary:'用户补充涉及个人账户收款，需核实资金责任。'};};
+ const r=await b.analyzeText('全栈开发工程师 月薪15000元 月结','',{turns,forceReport:true});
+ assert.equal(r.ok,true);assert.match(r.report.agentSummary,/个人账户收款/);
+});
 test('grounding accepts near-verbatim quotes but rejects fabricated evidence',()=>{
   const box=analysisBox();
   const text='负责无人配送车硬件产品线规划 30-60K·19薪。北京';

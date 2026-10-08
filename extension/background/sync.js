@@ -6,7 +6,7 @@ function prTimeoutSignal(ms){
  return undefined;
 }
 function prUuid(){
- try{if(globalThis.crypto&&typeof globalThis.crypto.randomUUID==='function')return globalThis.prUuid();}catch(_){}
+ try{if(globalThis.crypto&&typeof globalThis.crypto.randomUUID==='function')return globalThis.crypto.randomUUID();}catch(_){}
  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,ch=>{const r=Math.random()*16|0;return(ch==='x'?r:(r&0x3)|0x8).toString(16);});
 }
 let syncQueue=Promise.resolve();
@@ -19,7 +19,7 @@ async function syncRequest(auth,path,method='GET',body){
  let response;
  try {
   response=await fetch(auth.endpoint+'/api'+path,{method,headers:{'Content-Type':'application/json',...(auth.token?{Authorization:'Bearer '+auth.token}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:prTimeoutSignal(5000)});
- } catch (_) { throw new Error(`无法连接后端 ${auth.endpoint}。请双击“启动后端.cmd”并保持窗口开启。无需登录也可检测招聘信息。`); }
+ } catch (_) { throw new Error(`无法连接后端 ${auth.endpoint}。请确认服务器已启动、地址正确且网络可达；跨电脑使用时不能填写 127.0.0.1。无需登录也可检测招聘信息。`); }
  let data;
  try { data=await response.json(); } catch (_) { throw new Error('后端返回格式不正确，请核对地址和端口是否为本项目服务'); }
  if(!response.ok)throw new Error(data.error||`服务返回 ${response.status}`);return data;

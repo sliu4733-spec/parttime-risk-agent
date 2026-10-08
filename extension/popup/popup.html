@@ -38,6 +38,7 @@
           <p id="loginNotice" class="notice hidden"></p>
           <label for="loginBackendUrl">后端地址（本机或局域网）</label>
           <input type="text" id="loginBackendUrl" value="http://127.0.0.1:3000" />
+          <p class="home-note">跨电脑登录请填写注册账号时使用的同一台服务器地址。127.0.0.1 只代表当前电脑。</p>
           <label for="loginUsername">用户名</label>
           <input type="text" id="loginUsername" placeholder="用户名" autocomplete="username" />
           <label for="loginPassword">密码</label>
@@ -54,6 +55,7 @@
           <p id="registerNotice" class="notice hidden"></p>
           <label for="registerBackendUrl">后端地址（本机或局域网）</label>
           <input type="text" id="registerBackendUrl" value="http://127.0.0.1:3000" />
+          <p class="home-note">账号保存在此地址对应的服务器。多台电脑需使用同一个服务器，无需各自启动后端。</p>
           <label for="registerUsername">用户名</label>
           <input type="text" id="registerUsername" placeholder="用户名 3–32位" autocomplete="username" />
           <label for="registerPassword">密码</label>
@@ -125,6 +127,12 @@
           </div>
           <p id="modelStatus" class="summary" style="font-size:12px"></p>
           <p id="scoreHelp" style="font-size:12px;color:#526077"></p>
+          <div id="verificationSummary" class="question" role="status"></div>
+          <details open>
+            <summary class="sub-title">面试 / 入职前核实清单</summary>
+            <p>把下面的问题带给 HR。核实优先级不等于风险等级；回答“不知道”不会自动加分。</p>
+            <div id="verificationChecklist" class="question-list"></div>
+          </details>
           <pre id="agentSummary" class="summary"></pre>
           <div class="detail-grid">
             <div>
@@ -132,7 +140,7 @@
               <div id="riskList" class="mini-list"></div>
             </div>
             <div>
-              <div class="sub-title">缺失信息</div>
+              <div class="sub-title">结构化字段缺失（完整事项见核实清单）</div>
               <div id="missingList" class="mini-list"></div>
             </div>
           </div>

@@ -18,6 +18,23 @@ function makePopup({onBg,onMessage}={}){
  for(const f of ['popup.js','sync-ui.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/popup',f),'utf8'),ctx);
  return {dom,w,ctx,bg,storage};
 }
+test('report displays separate verification status and safely renders HR checklist',async()=>{
+ const p=makePopup();await new Promise(r=>setTimeout(r,25));
+ vm.runInContext(`renderReport({riskLevel:'低风险',score:0,verificationSummary:'待核实2项，不能确认可靠',verificationChecklist:[{priority:'优先核实',status:'用户尚未明确',question:'工资如何发放？',answer:'<img src=x onerror=alert(1)>',reason:'影响实际收入',evidence:'请获取书面回复'}]})`,p.ctx);
+ const d=p.w.document;assert.match(d.getElementById('verificationSummary').textContent,/不能确认可靠/);
+ assert.match(d.getElementById('verificationChecklist').textContent,/书面回复/);assert.equal(d.getElementById('verificationChecklist').querySelector('img'),null);
+ assert.match(d.getElementById('riskBadge').textContent,/规则判定/);p.dom.window.close();
+});
+test('free-form partial answers submit verbatim without requiring preset replies',async()=>{
+ let submitted;const p=makePopup({onMessage:(m,cb)=>{if(m.type==='SUBMIT_FOLLOWUP')submitted=m.payload;cb({ok:true,needQuestion:false,report:{riskLevel:'低风险',score:0,agentSummary:'已结合补充分析',evidence:[]}});}});
+ await new Promise(r=>setTimeout(r,30));
+ await vm.runInContext(`activeText='开发工程师';showQuestions(['合同类型？','工资构成？'],[{key:'contract',question:'合同类型？'},{key:'compensation',question:'工资构成？'}])`,p.ctx);
+ const answer='HR说先签三个月项目协议，之后可能转正式合同，但没有承诺具体日期。';
+ p.w.document.getElementById('answer-0').value=answer;
+ await vm.runInContext('submitFollowUp()',p.ctx);
+ assert.equal(submitted.turns[0].answers.length,2);assert.equal(submitted.turns[0].answers[1].answer,'');assert.equal(submitted.turns[0].answers[0].answer,answer);
+ p.dom.window.close();
+});
 
 test('home page offers entries; guest flow runs questions, answers, report and next round',async()=>{
  let saved;
