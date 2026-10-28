@@ -616,7 +616,7 @@ async function exportReport() {
 }
 
 async function clearHistory() {
-  if (!confirm("清空当前账号的本机记录？未同步的内容会丢失，云端记录不删除。")) return;
+  if (!confirm("清空当前账号的本机记录？未同步的内容会丢失，本机数据库记录不删除。")) return;
   await accountTask(async () => { await syncCall("clearLocal"); resetConversation(); hideReport(); activeText = ""; els.jobText.value = ""; await refreshSync(); });
 }
 

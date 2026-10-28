@@ -45,3 +45,11 @@ test('text outside viewport in scrollable detail is preserved',()=>{
  const p=page(`<div class="job-detail">${detail()}<p id="end">补充条件：合同约定绩效奖金支付日期。</p></div>`);
  p.w.document.getElementById('end').getBoundingClientRect=()=>({top:3000,bottom:3100,left:0,right:800});assert.match(p.read().text,/支付日期/);p.dom.window.close();
 });
+
+test('highlight stays in opened job and never adds unrelated fixed words',()=>{
+ const p=page(`<div class="job-detail">${detail()}<p>入职需要先交押金200元。</p><div class="recommend-list">押金 时间自由</div></div><aside>押金</aside>`);
+ assert.equal(p.w.highlightKeywords([]),0);
+ assert.ok(p.w.highlightKeywords(['押金'])>0);
+ assert.equal(p.w.document.querySelectorAll('.recommend-list mark,aside mark').length,0);
+ assert.equal(p.w.document.querySelectorAll('mark').length,1);p.dom.window.close();
+});

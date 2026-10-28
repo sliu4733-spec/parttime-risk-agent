@@ -25,7 +25,7 @@ async function persistSnapshot() {
   if (!activeRecordId) activeRecordId = (typeof uuid === 'function') ? uuid() : crypto.randomUUID();
   latestSnapshot = snapshotData();
   await syncCall('save', { record: { id: activeRecordId, data: latestSnapshot } });
-  syncEl('syncStatus').textContent = '已保存到本机；需点击同步才会上传';
+  syncEl('syncStatus').textContent = '已保存到浏览器；点击同步可另存到本机数据库';
 }
 
 function restoreSnapshot(record) {
@@ -69,9 +69,9 @@ async function refreshSync(restore = false) {
     open.onclick = () => accountTask(async () => { restoreSnapshot(record); await syncCall('activate', { id: record.id }); });
     row.appendChild(open);
     const del = document.createElement('button');
-    del.textContent = record.version ? '删除云端及本机记录' : '删除本机记录';
+    del.textContent = record.version ? '删除本机数据库及本机记录' : '删除本机记录';
     del.onclick = () => accountTask(async () => {
-      if (!confirm('确认删除这条记录？已同步记录将同时从云端删除。')) return;
+      if (!confirm('确认删除这条记录？已同步记录将同时从本机数据库删除。')) return;
       await syncCall('delete', { id: record.id });
       if (activeRecordId === record.id) { resetConversation(); hideReport(); els.jobText.value = ''; activeText = ''; }
       await refreshSync();
@@ -79,7 +79,7 @@ async function refreshSync(restore = false) {
     row.appendChild(del);
     if (record.conflict) {
       const resolve = document.createElement('button');
-      resolve.textContent = '采用云端版本（保留本机副本）';
+      resolve.textContent = '采用本机数据库版本（保留本机副本）';
       resolve.onclick = () => accountTask(async () => { await syncCall('resolve', { id: record.id }); await refreshSync(true); });
       row.appendChild(resolve);
     }
@@ -189,7 +189,7 @@ syncEl('logoutBtn').onclick = () => accountTask(async () => {
 }, '正在退出…');
 
 syncEl('uploadBtn').onclick = () => accountTask(async () => {
-  if (!syncEl('syncConsent').checked) throw new Error('请先勾选同意上传本条招聘文本、问答和报告');
+  if (!syncEl('syncConsent').checked) throw new Error('请先勾选同意将本条招聘文本、问答和报告保存到本机数据库');
   if (!activeRecordId) throw new Error('请先完成一次检测');
   const r = await syncCall('upload', { id: activeRecordId });
   await refreshSync();
@@ -199,7 +199,7 @@ syncEl('uploadBtn').onclick = () => accountTask(async () => {
 syncEl('downloadBtn').onclick = () => accountTask(async () => {
   const r = await syncCall('download');
   await refreshSync(true);
-  syncEl('syncStatus').textContent = r.conflicts ? '发现冲突，本机修改已保留，请在历史列表中处理' : '已获取云端记录';
+  syncEl('syncStatus').textContent = r.conflicts ? '发现冲突，本机修改已保留，请在历史列表中处理' : '已获取本机数据库记录';
 });
 
 // 弹窗失去焦点前保存已填写的答案，无需等待下一次模型请求。

@@ -28,7 +28,7 @@
           <button id="homeRegisterBtn" class="big">注册账号</button>
           <button id="homeLogoutBtn" class="link-btn" hidden>退出登录</button>
         </div>
-        <p class="home-note">游客模式无需账号即可完整使用检测功能，数据仅保存在本机；登录账号可将记录同步到后端，方便多设备查看。</p>
+        <p class="home-note">游客模式无需账号即可完整使用检测功能，数据仅保存在本机；登录账号可将记录同步到后端，按账号保存历史记录。</p>
       </section>
 
       <!-- 登录页 -->
@@ -36,9 +36,9 @@
         <div class="panel">
           <div class="panel-title">登录账号</div>
           <p id="loginNotice" class="notice hidden"></p>
-          <label for="loginBackendUrl">后端地址（本机或局域网）</label>
-          <input type="text" id="loginBackendUrl" value="http://127.0.0.1:3000" />
-          <p class="home-note">跨电脑登录请填写注册账号时使用的同一台服务器地址。127.0.0.1 只代表当前电脑。</p>
+          <label for="loginBackendUrl">本机服务地址</label>
+          <input type="text" id="loginBackendUrl" readonly value="http://127.0.0.1:3000" />
+          <p class="home-note">本演示版使用本机账号。先运行“启动后端.cmd”，无需配置网络。</p>
           <label for="loginUsername">用户名</label>
           <input type="text" id="loginUsername" placeholder="用户名" autocomplete="username" />
           <label for="loginPassword">密码</label>
@@ -53,9 +53,9 @@
         <div class="panel">
           <div class="panel-title">注册账号</div>
           <p id="registerNotice" class="notice hidden"></p>
-          <label for="registerBackendUrl">后端地址（本机或局域网）</label>
-          <input type="text" id="registerBackendUrl" value="http://127.0.0.1:3000" />
-          <p class="home-note">账号保存在此地址对应的服务器。多台电脑需使用同一个服务器，无需各自启动后端。</p>
+          <label for="registerBackendUrl">本机服务地址</label>
+          <input type="text" id="registerBackendUrl" readonly value="http://127.0.0.1:3000" />
+          <p class="home-note">账号只保存在当前电脑的数据库中；更换电脑请新建演示账号。</p>
           <label for="registerUsername">用户名</label>
           <input type="text" id="registerUsername" placeholder="用户名 3–32位" autocomplete="username" />
           <label for="registerPassword">密码</label>
@@ -165,10 +165,10 @@
             <div class="panel-title" id="historyTitle">个人记录</div>
             <button id="clearHistoryBtn" class="small-btn">清空本机</button>
           </div>
-          <label class="consent-line"><input type="checkbox" id="syncConsent" />同意将本条招聘文本、问答和报告上传至后端</label>
+          <label class="consent-line"><input type="checkbox" id="syncConsent" />同意将本条招聘文本、问答和报告保存至本机数据库</label>
           <div class="sync-row">
             <button id="uploadBtn" class="small-btn">同步当前记录 / 重试</button>
-            <button id="downloadBtn" class="small-btn">下载云端记录</button>
+            <button id="downloadBtn" class="small-btn">下载本机数据库记录</button>
           </div>
           <p id="syncStatus" class="sync-status">检测使用你自己的 API；同步不上传 Key 或图片原文件。</p>
           <div id="historyList" class="history-list"></div>

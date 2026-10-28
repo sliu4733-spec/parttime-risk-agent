@@ -63,7 +63,7 @@ async function createApp(file = path.join(__dirname,'data','sync.sqlite')) {
   const previous=one('SELECT * FROM records WHERE user_id=? AND id=?',[req.uid,id]);
   // Retrying the exact last write is safe even after a lost response.
   if(previous?.mutation===mutationId)return res.json({id,version:previous.version,deleted:!!previous.deleted});
-  if((previous?.version||0)!==baseVersion||previous?.deleted)return res.status(409).json({error:'云端记录已更新或删除，请先下载云端版本；本地内容仍保留',version:previous?.version||0});
+  if((previous?.version||0)!==baseVersion||previous?.deleted)return res.status(409).json({error:'本机数据库记录已更新或删除，请先下载本机数据库版本；本地内容仍保留',version:previous?.version||0});
   let payload='{}';
   if(!deleted){
    const allowed=['schema','inputText','turns','questionItems','report','status','draftAnswers','createdAt'];
@@ -80,7 +80,7 @@ async function createApp(file = path.join(__dirname,'data','sync.sqlite')) {
  return {app,close(){db.close();}};
 }
 if(require.main===module)createApp().then(({app})=>{
- const host=process.env.HOST||'127.0.0.1',port=Number(process.env.PORT||3000);
+ const host='127.0.0.1',port=Number(process.env.PORT||3000);
  app.listen(port,host,()=>console.log(`Sync server: http://${host}:${port} (SQLite: server/data/sync.sqlite)`));
 }).catch(e=>{console.error(e);process.exitCode=1;});
 module.exports={createApp};

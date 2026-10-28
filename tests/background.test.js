@@ -192,3 +192,13 @@ test('extraction failures expose stage diagnostics rather than silently posing a
  const r=await box.extractInfo(hardwareJob,true,{enableApi:true,apiKey:'test'});
  assert.equal(r.extractionSource,'local-fallback');assert.match(r.extractionError,/429/);assert.match(r.jobType,/产品经理/);
 });
+
+ test('context rules distinguish benefits, retail, uncertainty and explicit danger',()=>{
+ const box={console,importScripts(){},chrome:{runtime:{onInstalled:{addListener(){}},onMessage:{addListener(){}}}}};vm.createContext(box);
+ vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/data/riskRules.js'),'utf8'),box);
+ vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/background/service-worker.js'),'utf8'),box);
+ const scan=text=>vm.runInContext('riskScan('+JSON.stringify(text)+',DEFAULT_RISK_RULES)',box);
+ for(const text of ['时间自由，双休，负责客户接待','超市售卖酒水饮料','日结300元，负责展会翻译','公司提供意外险','不知道是否收取押金','无需缴纳押金','向租客收取押金，负责租房签约']) assert.equal(scan(text).score,0,text);
+ for(const text of ['入职前需缴纳押金200元','需要先交培训费99元','招聘兼职刷单垫付','必须提供验证码','必须陪酒']) assert.ok(scan(text).score>0,text);
+ assert.equal(box.contextualRiskMatch('时间自由','时间自由',{id:'legacy-custom'}),false);
+ });

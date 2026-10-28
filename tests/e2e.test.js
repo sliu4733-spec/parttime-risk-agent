@@ -11,7 +11,7 @@ test('register → login → full local analysis → report → next round again
 
   // 后台上下文：sync.js + riskRules.js + service-worker.js
   const storage={};let messageListener=null;
-  const bg={crypto:require('node:crypto').webcrypto,URL,AbortSignal,fetch,console,importScripts(){},
+  const bg={crypto:require('node:crypto').webcrypto,URL,AbortSignal,fetch:(url,opts)=>{assert.ok(url.startsWith("http://127.0.0.1:3000/api"));return fetch(url.replace("http://127.0.0.1:3000",endpoint),opts);},console,importScripts(){},
    chrome:{storage:{local:{async get(k){return {[k]:storage[k]};},async set(o){Object.assign(storage,structuredClone(o));},async remove(k){delete storage[k];}}},
     runtime:{onInstalled:{addListener(){}},onConnect:{addListener(){}},
      onMessage:{addListener(fn){messageListener=fn;}}}}};

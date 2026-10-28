@@ -1,9 +1,10 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const {createApp}=require('../server/app');
-function client(){
- const storage={},context={crypto:require('node:crypto').webcrypto,URL,AbortSignal,fetch,console,chrome:{storage:{local:{async get(k){return {[k]:storage[k]};},async set(o){Object.assign(storage,structuredClone(o));},async remove(k){delete storage[k];}}}}};
+function client(endpoint){
+ const localFetch=(url,opts)=>{assert.ok(url.startsWith("http://127.0.0.1:3000/api"));return fetch(url.replace("http://127.0.0.1:3000",endpoint),opts);};
+ const storage={},context={crypto:require('node:crypto').webcrypto,URL,AbortSignal,fetch:localFetch,console,chrome:{storage:{local:{async get(k){return {[k]:storage[k]};},async set(o){Object.assign(storage,structuredClone(o));},async remove(k){delete storage[k];}}}}};
  vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/background/sync.js'),'utf8'),context);
- return {call:m=>context.syncDispatch(m),offline(v){context.fetch=v?async()=>{throw Error('offline');}:fetch;},storage};
+ return {call:m=>context.syncDispatch(m),offline(v){context.fetch=v?async()=>{throw Error('offline');}:localFetch;},storage};
 }
 test('sync identifiers use native cryptographic UUID once without recursion',()=>{
  let calls=0;const context={crypto:{randomUUID(){calls++;return 'native-uuid';}}};
@@ -13,7 +14,7 @@ test('sync identifiers use native cryptographic UUID once without recursion',()=
 test('two clients sync, local offline state, conflict copy, account switching and deletion',async()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'sync-client-')),service=await createApp(path.join(dir,'test.sqlite')),server=service.app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
  try{
- const endpoint=`http://127.0.0.1:${server.address().port}`,a=client(),b=client();
+ const endpoint=`http://127.0.0.1:${server.address().port}`,a=client(endpoint),b=client(endpoint);
  const login={endpoint,username:'student',password:'password123'};
  const aa=await a.call({op:'register',...login}),bb=await b.call({op:'login',...login});assert.equal(aa.scope,bb.scope);
  const scope=aa.scope,data={schema:1,inputText:'兼职工资60',turns:[],questionItems:[{key:'fee',question:'需要押金吗？'}],report:null,status:'待补充',draftAnswers:['没有'],createdAt:new Date().toISOString()};

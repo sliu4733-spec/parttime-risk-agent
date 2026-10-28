@@ -424,7 +424,7 @@ function riskScan(text, rules) {
     const matched = [];
     for (const keyword of rule.keywords || []) {
       if (!keyword) continue;
-      if (hasNonNegatedKeyword(text, keyword)) {
+      if (contextualRiskMatch(text, keyword, rule)) {
         matched.push(keyword);
       }
     }
@@ -460,6 +460,38 @@ function riskScan(text, rules) {
       matched: rule.matched
     }))
   };
+}
+
+function contextualRiskMatch(text, keyword, rule) {
+  if (/^(时间自由|双休|弹性工作|待遇优厚|工资面议|酒水|手机操作|简单任务|轻松简单)$/.test(keyword)) return false;
+  const clauses=String(text).split(/[。！？!?；;\n]/).filter(s=>s.includes(keyword));
+  return clauses.some(clause=>{
+    if (!hasNonNegatedKeyword(clause,keyword)) return false;
+    if (/谨防|警惕|防骗|安全提示|请举报|请立即举报|切勿|不要向|不要提供|严禁|禁止/.test(clause)) return false;
+    if (/不知道|不清楚|不确定|是否|会不会|假如|假设/.test(clause)) return false;
+    switch(rule.id) {
+      case 'fee-deposit':
+        case 'fee-training':
+          return /交纳|缴纳|支付|收取|先交|需交|要交|交付|转账|自费|扣除|扣款/.test(clause) && !/向客户收取|向顾客收取|向租客收取|收取租客|收取客户/.test(clause);
+        case 'boundary-atmosphere':
+        return /陪酒|陪喝|强制消费|强制喝酒|必须喝酒|诱导消费|酒水任务|酒水指标/.test(keyword);
+      case 'safety-atmosphere':
+        return /凌晨|深夜|通宵/.test(clause) && /独自|自行返程|无接送|没有接送|偏僻/.test(clause);
+      case 'salary-high':
+        return /无经验|零门槛|无需经验|轻松|躺赚|不用工作|无需工作/.test(clause) && /日入|日赚|月入|高薪/.test(clause);
+      case 'vague-work':
+        return /加微信详聊|私聊/.test(clause) && /不透露|不方便说|保密|面试再说|详聊/.test(clause);
+      case 'privacy-sensitive':
+        return /提供|发送|提交|上传|索要|交出|代收|借用|出租|出借/.test(clause) &&
+          (/验证码|密码|出租|出借|代收|借用/.test(clause) || /面试前|入职前|录用前|陌生|私人微信/.test(clause));
+      case 'fee-deduction':
+        return /扣|自费|自行承担|缴纳|交纳|交费|支付|收取|强制购买/.test(clause);
+      case 'scam-brushing':
+        if (/刷单|垫付|先付款/.test(keyword)) return true;
+        return /任务|做单|兼职|求职|入职/.test(clause) && /充值|先付|垫付|返利|解冻/.test(clause) && !/客户|顾客|会员/.test(clause);
+      default:return true;
+    }
+  });
 }
 
 function hasNonNegatedKeyword(text, keyword) {

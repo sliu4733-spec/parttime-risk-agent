@@ -7,7 +7,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "HIGHLIGHT_RISKS") {
-    const keywords = message.payload?.keywords || [];
+    const keywords = [...new Set(message.payload?.keywords || [])];
     clearHighlights();
     const count = highlightKeywords(keywords);
     insertWarningBox(keywords, count);
@@ -36,7 +36,7 @@ const JOB_CARD_LIKE = '.job-card-wrapper,.job-list-item,.job-card,[data-testid="
 // A job-list layout can contain BOTH the cards and the opened detail pane.
 // Exclude individual cards, never every descendant of a layout by substring.
 const JOB_LIST_NOISE = '.job-recommend,.recommend-job,.recommend-list,.related-jobs,.job-card-wrapper,[class*="recommend"],[class*="related-job"],[class*="similar-job"],[class*="hot-job"]';
-const JOB_NOISE = 'script,style,noscript,nav,footer,aside,button,input,textarea,select,[role="navigation"],[role="banner"],[hidden],[aria-hidden="true"],' + JOB_LIST_NOISE + ',' + JOB_CARD_LIKE + ',#parttime-risk-warning-box,#parttime-risk-host';
+const JOB_NOISE = '.op-links,.job-op,.job-detail-op,.job-detail-share,.job-boss-info,.boss-info,.job-detail-boss,.job-tags,.job-banner .tag-all,script,style,noscript,nav,footer,aside,button,input,textarea,select,[role="navigation"],[role="banner"],[hidden],[aria-hidden="true"],' + JOB_LIST_NOISE + ',' + JOB_CARD_LIKE + ',#parttime-risk-warning-box,#parttime-risk-host';
 const JOB_SECTION = /职位描述|岗位职责|工作职责|工作内容|任职要求|职位要求|岗位要求|任职资格/;
 const JOB_PAY = /\d+(?:[.,]\d+)?\s*(?:[-~–—至]\s*\d+(?:[.,]\d+)?)?\s*(?:[kK万千]|元|薪)|薪资|时薪|日薪|月薪/;
 
@@ -115,7 +115,9 @@ function jobText(root) {
   return lines.join('').replace(/[^\S\n]+/g,' ').replace(/ *\n */g,'\n').replace(/\n{3,}/g,'\n\n').trim();
 }
 
+let highlightedJobRoot = null;
 function extractJobOnce(allowSelection = true) {
+  highlightedJobRoot = null;
   // 手动“分析当前页面”优先读取用户选中正文；自动检测不读取选区，避免任意选中文字触发误报。
   if (allowSelection) {
     const selected=window.getSelection()?.toString().trim();
@@ -138,6 +140,7 @@ function extractJobOnce(allowSelection = true) {
     for(let i=0;i<5 && p && p!==document.body;i++,p=p.parentElement) nodes.add(p);
   }
   const candidates=[];
+  const hasVisibleJobSection = [...document.querySelectorAll('h1,h2,h3,h4,h5,strong,b,p,div,span')].some(el => el.children.length<3 && (el.textContent||'').length<40 && JOB_SECTION.test(el.textContent||'') && jobVisible(el) && !el.closest(JOB_NOISE));
   for(const el of nodes) {
     if(!jobVisible(el) || el.closest(JOB_LIST_NOISE)) continue;
     // A container with the search list is not a single opened position.
@@ -151,15 +154,20 @@ function extractJobOnce(allowSelection = true) {
     const isGeneric = !isJobSpecific && el.matches('main,article,[role="main"]');
     // A technical role may contain no part-time/recruitment marketing phrases.
     // A complete detail with duties and pay is still a job posting.
-    const structuredJob = JOB_HEADING_RE.test(text) && PAY_SIGNAL_RE.test(text);
-    if(!likelyJobPosting(text, isGeneric) && !(structuredJob && !looksLikeEditorial(text))) continue;
+    const hasDuties = JOB_SECTION.test(text);
+    // A visible job-description heading must not be replaced with company-only text.
+    if (hasVisibleJobSection && !hasDuties) continue;
+    const structuredJob = hasDuties && (PAY_SIGNAL_RE.test(text) || /岗位职责|工作职责|任职要求|岗位要求/.test(text));
+    // Security/anti-fraud roles naturally discuss cases and fraud. Explicit job
+    // structure takes precedence over the editorial keyword heuristic.
+    if(!(structuredJob && (isJobSpecific || !looksLikeEditorial(text))) && !likelyJobPosting(text, isGeneric)) continue;
     const salaries=text.match(/\d+\s*[-~–—]\s*\d+\s*[kK万千]/g)||[];
     if(new Set(salaries).size>2) continue;
     const heading=el.querySelector('h1,h2,h3,.job-name,.job-title,[itemprop="title"],[class*="job"][class*="name"],[class*="position-name"]');
     const title=heading && jobVisible(heading) ? jobText(heading).slice(0,100) : '';
     const rect=el.getBoundingClientRect();
     const inView=rect.bottom>0 && rect.top<innerHeight && rect.right>0 && rect.left<innerWidth;
-    const score=30 + (JOB_PAY.test(text)?20:0) + (title && !JOB_SECTION.test(title)?12:0)
+    const score=30 + (hasDuties?80:0) + (JOB_PAY.test(text)?20:0) + (title && !JOB_SECTION.test(title)?12:0)
       + (/任职要求|职位要求|岗位要求|任职资格/.test(text)?8:0)
       + (/工作地址|工作地点/.test(text)?5:0) + (inView?8:0)
       + (el.matches('[role="dialog"],dialog[open]')?12:0)
@@ -168,10 +176,32 @@ function extractJobOnce(allowSelection = true) {
   }
   candidates.sort((a,b)=>b.score-a.score || a.text.length-b.text.length);
   const best=candidates[0];
+  highlightedJobRoot = best?.el || null;
   if(!best) return {ok:false,error:'未能提取该页面的岗位正文，可能是页面结构未适配或详情尚未加载。可选中标题、薪资和职责后再次分析，或粘贴正文、上传详情截图。'};
   const rival=candidates.find(c=>c!==best && !best.el.contains(c.el) && !c.el.contains(best.el) && c.text!==best.text && c.score>=best.score-5);
   if(rival) return {ok:false,error:'页面中有多个岗位详情，暂时无法确定你要分析哪一个。请选中目标岗位正文后再次分析。'};
-  return {ok:true,text:best.text.slice(0,12000),title:best.title,source:'job-detail',truncated:best.text.length>12000};
+  // Dedicated job pages often put title/pay in a sibling banner, not the body.
+  const banners=[...document.querySelectorAll('.job-banner,.job-header,[data-testid="job-header"]')]
+    .filter(el=>jobVisible(el) && !el.closest(JOB_LIST_NOISE) && !el.querySelector(JOB_CARD_LIKE));
+  let output=best.text, title=best.title;
+  if(banners.length===1 && !best.el.contains(banners[0]) && !banners[0].contains(best.el)) {
+    const heading=banners[0].querySelector('h1');
+    const salary=banners[0].querySelector('.salary');
+    const descriptors=[...banners[0].querySelectorAll('.text-desc')];
+    const meta=heading && salary ? [jobText(heading),jobText(salary),...descriptors.map(jobText)].filter(Boolean).join('\n') : jobText(banners[0]);
+    if(meta.length<2500 && JOB_PAY.test(meta)) {
+      output=meta+'\n\n'+output;
+      const h=banners[0].querySelector('h1,h2,.job-name,.job-title');
+      if(h) title=jobText(h).slice(0,100);
+    }
+  }
+  const detailRoot=best.el.closest('.job-detail') || best.el;
+  const addresses=[...detailRoot.querySelectorAll('.company-address .location-address')].filter(jobVisible);
+  if(addresses.length===1) {
+    const address=jobText(addresses[0]);
+    if(address && !output.includes(address)) output+='\n\n工作地址：'+address;
+  }
+  return {ok:true,text:output.slice(0,12000),title,source:'job-detail',truncated:output.length>12000};
 }
 
 async function extractCurrentJob() {
@@ -198,15 +228,17 @@ function clearHighlights() {
 }
 
 function highlightKeywords(keywords) {
+  extractJobOnce(false);
+  if (!highlightedJobRoot) return 0;
   // 始终把高危词纳入高亮集合：只要招聘原文里出现就标红，避免检测规则遗漏。
-  const merged = [...new Set([...(keywords || []), ...DANGER_KEYWORDS])];
+  const merged = [...new Set([...(keywords || [])])];
   const validKeywords = merged.filter((item) => item && item.length >= 2).slice(0, 20);
   if (!validKeywords.length) return 0;
 
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+  const walker = document.createTreeWalker(highlightedJobRoot, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       const parent = node.parentElement;
-      if (!parent) return NodeFilter.FILTER_REJECT;
+      if (!parent || parent.closest(JOB_NOISE) || !jobVisible(parent)) return NodeFilter.FILTER_REJECT;
       const tag = parent.tagName.toLowerCase();
       if (["script", "style", "textarea", "input", "mark"].includes(tag)) return NodeFilter.FILTER_REJECT;
       if (!node.nodeValue || !validKeywords.some((keyword) => node.nodeValue.includes(keyword))) {
@@ -240,7 +272,7 @@ function highlightKeywords(keywords) {
 }
 
 function insertWarningBox(keywords, count) {
-  if (!keywords.length) return;
+  if (!keywords.length || !count) return;
   const box = document.createElement("div");
   box.id = "parttime-risk-warning-box";
   box.innerHTML = `

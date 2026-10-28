@@ -11,7 +11,7 @@ function prUuid(){
 }
 let syncQueue=Promise.resolve();
 function syncDispatch(message){const run=syncQueue.then(()=>syncAction(message));syncQueue=run.catch(()=>{});return run;}
-async function syncAuth(){return (await chrome.storage.local.get('syncAuth')).syncAuth||null;}
+async function syncAuth(){const a=(await chrome.storage.local.get('syncAuth')).syncAuth;return a?.endpoint==='http://127.0.0.1:3000'?a:null;}
 function syncScope(auth){return auth?`${auth.endpoint}|${auth.user.id}`:'guest';}
 async function syncState(auth){return (await chrome.storage.local.get('sync:'+syncScope(auth)))['sync:'+syncScope(auth)]||{records:[],active:null};}
 async function syncSave(auth,state){await chrome.storage.local.set({['sync:'+syncScope(auth)]:state});}
@@ -19,7 +19,7 @@ async function syncRequest(auth,path,method='GET',body){
  let response;
  try {
   response=await fetch(auth.endpoint+'/api'+path,{method,headers:{'Content-Type':'application/json',...(auth.token?{Authorization:'Bearer '+auth.token}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:prTimeoutSignal(5000)});
- } catch (_) { throw new Error(`无法连接后端 ${auth.endpoint}。请确认服务器已启动、地址正确且网络可达；跨电脑使用时不能填写 127.0.0.1。无需登录也可检测招聘信息。`); }
+ } catch (_) { throw new Error(`无法连接后端 ${auth.endpoint}。请先双击项目目录的“启动后端.cmd”，保持窗口运行。无需登录也可检测招聘信息。`); }
  let data;
  try { data=await response.json(); } catch (_) { throw new Error('后端返回格式不正确，请核对地址和端口是否为本项目服务'); }
  if(!response.ok)throw new Error(data.error||`服务返回 ${response.status}`);return data;
@@ -28,7 +28,7 @@ async function syncAction(m){
  let auth=await syncAuth();let state=await syncState(auth);
  if(m.op==='state')return {ok:true,scope:syncScope(auth),user:auth?.user,endpoint:auth?.endpoint||'http://127.0.0.1:3000',state};
  if(m.op==='login'||m.op==='register'){
-  const url=new URL(m.endpoint);
+  const url=new URL('http://127.0.0.1:3000');
   if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw new Error('后端地址只填写 http(s)://主机:端口');
   const endpoint=url.origin;
   const result=await syncRequest({endpoint},'/auth/'+m.op,'POST',{username:m.username,password:m.password});
